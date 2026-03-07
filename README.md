@@ -1,8 +1,12 @@
 # clenv
 
-Strongly typed env file loading for Node.js.
+Env file loading for Node.js.
 
-Reads `KEY=VALUE` files and returns a fully typed object, no `process.env` mutation.
+- **Strongly typed** — return type is inferred from your config. Transforms, defaults, and key casing are all reflected in the types.
+- **Composable transforms** — combine `withRequired`, `withDefault`, and transform functions or write your own.
+- **Key transformation** — optionally converts `UPPER_SNAKE_CASE` keys to `camelCase`, with full type-level support.
+- **No `process.env` mutation** — returns a plain object. Secrets stay out of child processes.
+- **Quote handling** — strips surrounding `"`, `'`, and `` ` `` from values. Expands `\n` and `\r` escapes inside double quotes.
 
 ```ts
 import { loadEnv, unwrap, toString, toInt, toBool, withDefault, withRequired } from "clenv";
@@ -23,38 +27,6 @@ const env = unwrap(
 
 // if `transformKeys` is set to `true`, then env is typed as:
 // { databaseUrl: string, port: number, debug: boolean }
-```
-
-## Features
-
-- **Strongly typed** — return type is inferred from your config. Transforms, defaults, and key casing are all reflected in the types.
-- **No `process.env` mutation** — returns a plain object. Secrets stay out of child processes.
-- **Composable transforms** — combine `withRequired`, `withDefault`, and transform functions or write your own.
-- **Key transformation** — optionally converts `UPPER_SNAKE_CASE` keys to `camelCase`, with full type-level support.
-- **Quote handling** — strips surrounding `"`, `'`, and `` ` `` from values. Expands `\n` and `\r` escapes inside double quotes.
-
-## API
-
-### `loadEnv(opts, config)`
-
-Reads and parses an env file. Returns a `Result`.
-
-```ts
-const result = loadEnv(
-    { path: ".env", transformKeys: false },
-    {
-        API_KEY: withRequired(toString),
-        PORT: withDefault(toInt, 8080),
-    }
-);
-
-if (!result.ok) {
-    console.error(result.ctx); // string[] of errors
-    process.exit(1);
-}
-
-console.log(result.data.API_KEY); // string
-console.log(result.data.PORT);    // number
 ```
 
 **Options:**
