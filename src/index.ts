@@ -149,9 +149,11 @@ export function toString(_: string, v: string): Result<string> {
     return success(v);
 }
 
-export function toBool(_: string, v: string): Result<boolean> {
-    if (v === "true" || v === "TRUE" || v === "1") return success(true);
-    return success(false);
+export function toBool(key: string, v: string): Result<boolean> {
+    const lower = v.toLowerCase();
+    if (lower === "true" || v === "1") return success(true);
+    if (lower === "false" || v === "0") return success(false);
+    return failure(`${key}: expected boolean, got '${v}'`);
 }
 
 export function toInt(key: string, v: string): Result<number> {
