@@ -248,6 +248,122 @@ describe("integration: real .env files", () => {
         });
     });
 
+    describe("comments", () => {
+        it("skips lines starting with #", () => {
+            const result = loadEnv(
+                {path: fixture(".env.comments"), transformKeys: false},
+                {HOST: toString, PORT: toInt, DEBUG: toBool}
+            );
+            expect(result).toEqual({
+                ok: true,
+                data: {HOST: "localhost", PORT: 3000, DEBUG: true},
+            });
+        });
+
+        it("does not parse commented-out keys", () => {
+            const result = loadEnv(
+                {path: fixture(".env.comments"), transformKeys: false},
+                {KEY: withRequired(toString)}
+            );
+            expect(result).toEqual({
+                ok: false,
+                ctx: ["KEY: is required but is missing"],
+            });
+        });
+
+        it("skips indented comments", () => {
+            const result = loadEnv(
+                {path: fixture(".env.comments"), transformKeys: false},
+                {HOST: toString, DEBUG: toBool}
+            );
+            expect(result).toEqual({
+                ok: true,
+                data: {HOST: "localhost", DEBUG: true},
+            });
+        });
+    });
+
+    describe("export stripping", () => {
+        it("strips export prefix from lines", () => {
+            const result = loadEnv(
+                {path: fixture(".env.export"), transformKeys: false},
+                {HOST: toString, PORT: toInt, API_KEY: toString}
+            );
+            expect(result).toEqual({
+                ok: true,
+                data: {HOST: "localhost", PORT: 3000, API_KEY: "secret123"},
+            });
+        });
+
+        it("mixes export and non-export lines", () => {
+            const result = loadEnv(
+                {path: fixture(".env.export"), transformKeys: false},
+                {HOST: toString, DEBUG: toBool}
+            );
+            expect(result).toEqual({
+                ok: true,
+                data: {HOST: "localhost", DEBUG: true},
+            });
+        });
+
+        it("works with transformKeys and export prefix", () => {
+            const result = loadEnv(
+                {path: fixture(".env.export"), transformKeys: true},
+                {API_KEY: withRequired(toString), PORT: toInt}
+            );
+            expect(result).toEqual({
+                ok: true,
+                data: {apiKey: "secret123", port: 3000},
+            });
+        });
+    });
+
+    describe("strict toBool", () => {
+        it("accepts true, TRUE, True as true", () => {
+            const result = loadEnv(
+                {path: fixture(".env.bool"), transformKeys: false},
+                {A: toBool, B: toBool, C: toBool}
+            );
+            expect(result).toEqual({
+                ok: true,
+                data: {A: true, B: true, C: true},
+            });
+        });
+
+        it("accepts false, FALSE, False as false", () => {
+            const result = loadEnv(
+                {path: fixture(".env.bool"), transformKeys: false},
+                {D: toBool, E: toBool, F: toBool}
+            );
+            expect(result).toEqual({
+                ok: true,
+                data: {D: false, E: false, F: false},
+            });
+        });
+
+        it("accepts 1 as true and 0 as false", () => {
+            const result = loadEnv(
+                {path: fixture(".env.bool"), transformKeys: false},
+                {G: toBool, H: toBool}
+            );
+            expect(result).toEqual({
+                ok: true,
+                data: {G: true, H: false},
+            });
+        });
+
+        it("rejects invalid boolean values", () => {
+            const result = loadEnv(
+                {path: fixture(".env.bool"), transformKeys: false},
+                {I: toBool}
+            );
+            expect(result).toEqual({
+                ok: false,
+                ctx: ["I: expected boolean, got 'nope'"],
+            });
+        });
+    });
+
     describe("full end-to-end with transformKeys", () => {
         it("loads complex file with transformKeys and mixed transforms", () => {
             const result = loadEnv(

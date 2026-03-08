@@ -330,10 +330,7 @@ describe("loadEnv", () => {
     describe("missing keys without wrappers", () => {
         it("plain toString succeeds with empty string for missing key", () => {
             mockFile(envFile("OTHER=value"));
-            const result = loadEnv(
-                {path: ".env", transformKeys: false},
-                {FOO: toString}
-            );
+            const result = loadEnv({path: ".env", transformKeys: false}, {FOO: toString});
             expect(result).toEqual({ok: true, data: {FOO: ""}});
         });
     });
@@ -386,7 +383,10 @@ describe("loadEnv", () => {
         it("returns false for anything else", () => {
             expect(toBool("KEY", "false")).toEqual({ok: true, data: false});
             expect(toBool("KEY", "0")).toEqual({ok: true, data: false});
-            expect(toBool("KEY", "nope")).toEqual({ok: true, data: false});
+            expect(toBool("KEY", "nope")).toEqual({
+                ok: false,
+                ctx: "KEY: expected boolean, got 'nope'",
+            });
         });
     });
 
