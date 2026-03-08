@@ -1,5 +1,6 @@
 import {join as nodeJoin} from "node:path";
 import {readFileSync} from "node:fs";
+// JUST IMPORT FOR SOME TESTING CODE IGNORE
 import {ProcessEventMap} from "node:process";
 
 export type LoadEnvOpts = {
@@ -7,7 +8,7 @@ export type LoadEnvOpts = {
     transformKeys: boolean;
     basePath?: string;
     encoding?: BufferEncoding;
-    includeProcessEnv?: boolean | "overwrite"; // TODO actually implement
+    includeProcessEnv?: boolean | "overwrite";
     log?: boolean;
     schemaParser?: SchemaParser;
     radix?: RadixFn;
@@ -27,69 +28,99 @@ export function loadEnv<TOpts extends LoadEnvOpts, TEnv extends {[key: string]: 
     string[]
 > {
     const errors: string[] = [];
-    const env: Record<PropertyKey, unknown> = {}; // TODO use output type
-    const rawEnv: Record<string, unknown> = {}; // TODO use output type BUT with partial
+    const env: Record<PropertyKey, unknown> = {};
+    const rawEnv: Record<string, unknown> = {};
     const seenKeys = new Set<string>();
 
     const ctx: TransformContext = {
         rawEnv,
-        schemaParser: opts.schemaParser,
-        radix: opts.radix,
+        ...(opts.schemaParser && {schemaParser: opts.schemaParser}),
+        ...(opts.radix && {radix: opts.radix}),
     };
 
-    const fileContents: string[] = [];
-
+    // ── 1. Parse all files ──
+    const allEntries: ParsedEntry[] = [];
     for (let filePath of opts.files) {
         if (opts.basePath) {
             filePath = nodeJoin(opts.basePath, filePath);
         }
         const fileResult = readFile(filePath, opts.encoding ?? "utf8");
         if (fileResult.ok) {
-            fileContents.push(fileResult.data);
+            allEntries.push(...parseDotenv(fileResult.data));
         } else {
             errors.push(fileResult.ctx);
         }
     }
 
+    // ── 2. Deduplicate (last-wins) ──
+    const deduped = new Map<string, ParsedEntry>();
+    for (const entry of allEntries) {
+        if (opts.log && deduped.has(entry.key)) {
+            console.warn(`${entry.key}:L${entry.line}: duplicate key, overwriting previous value.`);
+        }
+        deduped.set(entry.key, entry);
+    }
+
+    if (opts.log) {
+        for (const [key, entry] of deduped) {
+            if (!config[key]) {
+                console.warn(`${key}:L${entry.line}: not a known key.`);
+            }
+        }
+    }
+
+    // ── 3. Expand (skip single-quoted values) ──
+    const expanded = new Map<string, string>();
+    for (const [key, entry] of deduped) {
+        if (entry.quoted === "'") {
+            expanded.set(key, entry.value);
+        } else {
+            expanded.set(key, expand(entry.value, expanded, process.env));
+        }
+    }
+
+    // ── 4. Merge process.env ──
+    if (opts.includeProcessEnv) {
+        for (const key of Object.keys(config)) {
+            const pVal = process.env[key];
+            if (pVal === undefined) continue;
+
+            if (opts.includeProcessEnv === "overwrite") {
+                expanded.set(key, pVal);
+            } else if (!expanded.has(key)) {
+                expanded.set(key, pVal);
+            }
+        }
+    }
+
+    // ── 5. Run transforms ──
     function setVal(key: string, value: unknown) {
         const finalKey = opts.transformKeys ? toCamelCase(key) : key;
         (env as any)[finalKey] = value;
         rawEnv[key] = value;
     }
 
-    for (const fileContent of fileContents) {
-        const entries = parseDotenv(fileContent);
-        for (const entry of entries) {
-            const transform = config[entry.key];
-            if (!transform) {
-                if (opts.log) {
-                    console.warn(`${entry.key}:L${entry.line}: is not a known key.`);
-                }
+    for (const [key, value] of expanded) {
+        const transform = config[key];
+        if (!transform) continue;
+        seenKeys.add(key);
+        const entry = deduped.get(key);
+        try {
+            const transformResult = transform(key, value, ctx);
+            if (!transformResult.ok) {
+                const prefix = entry ? `${key}:L${entry.line}` : key;
+                errors.push(`${prefix}: ${transformResult.ctx}`);
                 continue;
             }
-            if (opts.log && seenKeys.has(entry.key)) {
-                console.warn(
-                    `${entry.key}:L${entry.line}: is a duplicate key. It will overwrite previous value.`
-                );
-            }
-            seenKeys.add(entry.key);
-            try {
-                const transformResult = transform(entry.key, entry.value, ctx);
-                if (!transformResult.ok) {
-                    errors.push(`${entry.key}:L${entry.line}: ${transformResult.ctx}`);
-                    continue;
-                }
-                setVal(entry.key, transformResult.data);
-            } catch (err) {
-                errors.push(`${entry.key}:L${entry.line}: transform function threw: ` + err);
-                continue;
-            }
+            setVal(key, transformResult.data);
+        } catch (err) {
+            const prefix = entry ? `${key}:L${entry.line}` : key;
+            errors.push(`${prefix}: transform function threw: ` + err);
+            continue;
         }
     }
 
-    // check if we have covered all keys
-    // specified in config. If not, call
-    // `transform` for unseen keys
+    // ── 6. Handle unseen keys ──
     const cfgEntries = Object.entries(config);
     if (seenKeys.size < cfgEntries.length) {
         for (const [cfgKey, cfgFn] of cfgEntries) {
@@ -98,7 +129,7 @@ export function loadEnv<TOpts extends LoadEnvOpts, TEnv extends {[key: string]: 
             if (result.ok) {
                 setVal(cfgKey, result.data);
             } else {
-                errors.push(`${cfgKey}: ${result.ctx}`);
+                errors.push(result.ctx);
             }
         }
     }
@@ -282,6 +313,7 @@ type ParsedEntry = {
     key: string;
     value: string;
     line: number;
+    quoted?: '"' | "'" | "`";
 };
 
 function parseDotenv(raw: string): ParsedEntry[] {
@@ -438,10 +470,22 @@ function parseDotenv(raw: string): ParsedEntry[] {
         // consume rest of line after quoted value
         skipToNewline();
 
-        entries.push({key, value, line: entryLine});
+        const quoted = quote === '"' || quote === "'" || quote === "`" ? quote : undefined;
+        entries.push({key, value, line: entryLine, ...(quoted && {quoted})});
     }
 
     return entries;
+}
+
+function expand(
+    value: string,
+    resolved: Map<string, string>,
+    env: Record<string, string | undefined>
+): string {
+    return value.replace(/\$\{([^}]+)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g, (_, braced, bare) => {
+        const name = braced ?? bare;
+        return resolved.get(name) ?? env[name] ?? "";
+    });
 }
 
 // TEST CODE JUST TO CHECK IT WORKS HERE IN THE EDITOR; JUST DISGARD WILL BE REMOVED!!
