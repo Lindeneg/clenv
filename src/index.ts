@@ -183,6 +183,9 @@ export function toIntArray(delimiter = ",") {
     };
 }
 
+// TODO think about offering an opt-in schema parser
+// as well, maybe `clEnv.setSchemaParser` and then allow
+// the consumer to specify their own (zod or whatever)
 export function toJSON<T>() {
     return function (k: string, v: string): Result<T> {
         try {
