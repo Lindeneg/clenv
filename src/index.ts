@@ -118,6 +118,26 @@ export function loadEnv<TOpts extends LoadEnvOpts, TEnv extends {[key: string]: 
     return success(env as any);
 }
 
+export type SchemaParser<TSchema = any, TReturn = any> = (
+    obj: unknown,
+    schema: TSchema,
+    key: string
+) => Result<TReturn, string>;
+
+export const schemaParser = (() => {
+    let parser: SchemaParser | null = null;
+
+    return {
+        get() {
+            return parser;
+        },
+        set(newParser: SchemaParser | null) {
+            parser = newParser;
+            return {loadEnv};
+        },
+    };
+})();
+
 type ResultSuccess<TData> = {
     data: TData;
     ok: true;
@@ -183,13 +203,20 @@ export function toIntArray(delimiter = ",") {
     };
 }
 
-// TODO think about offering an opt-in schema parser
-// as well, maybe `clEnv.setSchemaParser` and then allow
-// the consumer to specify their own (zod or whatever)
-export function toJSON<T>() {
+export function toJSON<T>(schema?: unknown) {
     return function (k: string, v: string): Result<T> {
         try {
             const json = JSON.parse(v);
+            if (schema) {
+                const parser = schemaParser.get();
+                if (!parser) {
+                    return failure(
+                        `${k}: schema provided but no schemaParser is set. ` +
+                            "Please use '.schemaParser.set(...).loadEnv(...)'"
+                    );
+                }
+                return parser(json, schema, k);
+            }
             return success(json);
         } catch (err) {
             return failure(`${k}: failed to convert to JSON`);
@@ -244,7 +271,7 @@ function toCamelCase(s: string): string {
 }
 
 function toNumber(key: string, v: string, parser: "int" | "float") {
-    const n = parser === "int" ? parseInt(v) : parseFloat(v);
+    const n = parser === "int" ? parseInt(v, 10) : parseFloat(v);
     if (Number.isNaN(n)) return failure(`${key}: failed to convert '${v}' to a number`);
     return success(n);
 }

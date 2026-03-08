@@ -1,5 +1,5 @@
 import nodePath from "node:path";
-import {describe, it, expect} from "vitest";
+import {describe, it, expect, beforeEach} from "vitest";
 import {
     loadEnv,
     unwrap,
@@ -12,6 +12,9 @@ import {
     toIntArray,
     withDefault,
     withRequired,
+    schemaParser,
+    success,
+    failure,
 } from "./index.js";
 
 const fixtures = nodePath.join(import.meta.dirname, "fixtures");
@@ -360,6 +363,102 @@ describe("integration: real .env files", () => {
             expect(result).toEqual({
                 ok: false,
                 ctx: ["I: expected boolean, got 'nope'"],
+            });
+        });
+    });
+
+    describe("schemaParser with real files", () => {
+        beforeEach(() => {
+            schemaParser.set(null);
+        });
+
+        it("validates JSON from file with a schema parser", () => {
+            type DbConfig = {host: string; port: number; ssl: boolean};
+            const dbSchema = {type: "DbConfig"};
+            schemaParser.set((obj, schema) => {
+                if (
+                    schema === dbSchema &&
+                    typeof obj === "object" &&
+                    obj !== null &&
+                    "host" in obj &&
+                    "port" in obj
+                ) {
+                    return success(obj);
+                }
+                return failure("validation failed");
+            });
+
+            const result = loadEnv(
+                {path: fixture(".env.complex"), transformKeys: false},
+                {JSON_CONFIG: toJSON<DbConfig>(dbSchema)}
+            );
+            expect(result).toEqual({
+                ok: true,
+                data: {JSON_CONFIG: {host: "localhost", port: 5432, ssl: true}},
+            });
+        });
+
+        it("returns failure when schema parser rejects real file data", () => {
+            schemaParser.set((_obj, _schema) => {
+                return failure("JSON_CONFIG: missing required field 'name'");
+            });
+
+            const result = loadEnv(
+                {path: fixture(".env.complex"), transformKeys: false},
+                {JSON_CONFIG: toJSON({})}
+            );
+            expect(result).toEqual({
+                ok: false,
+                ctx: ["JSON_CONFIG: missing required field 'name'"],
+            });
+        });
+
+        it("parser set but no schema passed skips parser on real file", () => {
+            let called = false;
+            schemaParser.set(() => {
+                called = true;
+                return success({});
+            });
+
+            const result = loadEnv(
+                {path: fixture(".env.complex"), transformKeys: false},
+                {JSON_CONFIG: toJSON<{host: string; port: number; ssl: boolean}>()}
+            );
+            expect(called).toBe(false);
+            expect(result).toEqual({
+                ok: true,
+                data: {JSON_CONFIG: {host: "localhost", port: 5432, ssl: true}},
+            });
+        });
+
+        it("no parser set with schema passed fails on real file", () => {
+            const result = loadEnv(
+                {path: fixture(".env.complex"), transformKeys: false},
+                {JSON_CONFIG: toJSON({})}
+            );
+            expect(result.ok).toBe(false);
+            if (!result.ok) {
+                expect(result.ctx[0]).toContain("schema provided but no schemaParser is set");
+            }
+        });
+
+        it("chained set().loadEnv works with real files", () => {
+            const result = schemaParser
+                .set((obj, _schema) => success(obj))
+                .loadEnv(
+                    {path: fixture(".env.complex"), transformKeys: true},
+                    {
+                        JSON_CONFIG: toJSON<{host: string; port: number; ssl: boolean}>({}),
+                        API_KEY: withRequired(toString),
+                    }
+                );
+
+            expect(result).toEqual({
+                ok: true,
+                data: {
+                    jsonConfig: {host: "localhost", port: 5432, ssl: true},
+                    apiKey: "sk-abc123def456",
+                },
             });
         });
     });

@@ -66,8 +66,8 @@ Each config value is a transform function `(key: string, value: string) => Resul
 | `toString` | `string` | Returns the value as-is. |
 | `toInt` | `number` | Parses an integer. Fails on non-numeric input. |
 | `toFloat` | `number` | Parses a float. Fails on non-numeric input. |
-| `toBool` | `boolean` | `"true"`, `"TRUE"`, `"1"` → `true`, everything else → `false`. |
-| `toJSON<T>()` | `T` | Parses JSON. Fails on invalid input but does NOT validate schema.|
+| `toBool` | `boolean` | `"true"`, `"TRUE"`, `"True"`, `"1"` → `true`, `"false"`, `"FALSE"`, `"False"`, `"0"` → `false`. Fails on anything else. |
+| `toJSON<T>(schema?)` | `T` | Parses JSON. Fails on invalid input. Optionally validates against a schema (see [Schema validation](#schema-validation)). |
 | `toStringArray(delimiter?)` | `string[]` | Splits by delimiter (default `","`). |
 | `toIntArray(delimiter?)` | `number[]` | Splits and parses each element as an integer. |
 
@@ -99,9 +99,39 @@ const env = unwrap(
 );
 ```
 
+## Schema validation
+
+`toJSON` accepts an optional schema argument. To use it, register a schema parser first:
+
+```ts
+import { schemaParser, loadEnv, unwrap, toJSON, toString, withRequired } from "@lindeneg/cl-env";
+
+// Register your parser once, then chain into loadEnv
+const env = unwrap(
+    schemaParser
+        .set((obj, schema) => {
+            // Use any validation library here (zod, arktype, etc.)
+            const result = schema.safeParse(obj);
+            if (result.success) return success(result.data);
+            return failure(`validation failed: ${result.error.message}`);
+        })
+        .loadEnv(
+            { path: ".env", transformKeys: false },
+            {
+                DB_CONFIG: toJSON<DbConfig>(dbConfigSchema),
+                API_KEY: withRequired(toString),
+            }
+        )
+);
+```
+
+If a schema is passed to `toJSON` but no parser has been registered, it will fail with an error telling you to call `schemaParser.set(...)` first.
+
 ## Parsing rules
 
 - Lines are split on the first `=`. Keys and values are trimmed.
+- Lines starting with `#` are treated as comments and skipped.
+- Lines starting with `export ` have the prefix stripped (for bash compatibility).
 - Empty lines and lines without `=` are skipped.
 - Keys not in your config are ignored.
 - Surrounding quotes (`"`, `'`, `` ` ``) are stripped from values.

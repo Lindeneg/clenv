@@ -14,6 +14,9 @@ import {
     toIntArray,
     withDefault,
     withRequired,
+    schemaParser,
+    success,
+    failure,
 } from "./index.js";
 
 const mockReadFileSync = vi.spyOn(fs, "readFileSync");
@@ -530,6 +533,233 @@ describe("loadEnv", () => {
                     >
                 >;
             }
+        });
+    });
+
+    describe("comments", () => {
+        it("skips lines starting with #", () => {
+            mockFile(envFile("# comment", "FOO=bar", "# another", "BAR=baz"));
+            const result = loadEnv(
+                {path: ".env", transformKeys: false},
+                {FOO: toString, BAR: toString}
+            );
+            expect(result).toEqual({ok: true, data: {FOO: "bar", BAR: "baz"}});
+        });
+
+        it("skips indented comments (trimmed first)", () => {
+            mockFile(envFile("  # indented comment", "FOO=bar"));
+            const result = loadEnv({path: ".env", transformKeys: false}, {FOO: toString});
+            expect(result).toEqual({ok: true, data: {FOO: "bar"}});
+        });
+
+        it("does not treat # in values as comments", () => {
+            mockFile(envFile("URL=http://example.com/#anchor"));
+            const result = loadEnv({path: ".env", transformKeys: false}, {URL: toString});
+            expect(result).toEqual({ok: true, data: {URL: "http://example.com/#anchor"}});
+        });
+
+        it("commented-out key is treated as missing", () => {
+            mockFile(envFile("#FOO=bar"));
+            const result = loadEnv(
+                {path: ".env", transformKeys: false},
+                {FOO: withRequired(toString)}
+            );
+            expect(result).toEqual({ok: false, ctx: ["FOO: is required but is missing"]});
+        });
+    });
+
+    describe("export stripping", () => {
+        it("strips 'export ' prefix from lines", () => {
+            mockFile(envFile("export FOO=bar"));
+            const result = loadEnv({path: ".env", transformKeys: false}, {FOO: toString});
+            expect(result).toEqual({ok: true, data: {FOO: "bar"}});
+        });
+
+        it("mixes export and non-export lines", () => {
+            mockFile(envFile("export FOO=bar", "BAR=baz"));
+            const result = loadEnv(
+                {path: ".env", transformKeys: false},
+                {FOO: toString, BAR: toString}
+            );
+            expect(result).toEqual({ok: true, data: {FOO: "bar", BAR: "baz"}});
+        });
+
+        it("does not strip 'export' without trailing space", () => {
+            mockFile(envFile("exportFOO=bar"));
+            const result = loadEnv(
+                {path: ".env", transformKeys: false},
+                {FOO: withRequired(toString)}
+            );
+            expect(result).toEqual({ok: false, ctx: ["FOO: is required but is missing"]});
+        });
+
+        it("works with transformKeys", () => {
+            mockFile(envFile("export FOO_BAR=hello"));
+            const result = loadEnv({path: ".env", transformKeys: true}, {FOO_BAR: toString});
+            expect(result).toEqual({ok: true, data: {fooBar: "hello"}});
+            if (result.ok) {
+                type assertion = Expect<Equal<typeof result.data, {fooBar: string}>>;
+            }
+        });
+    });
+
+    describe("strict toBool", () => {
+        it('returns true for "True" (case insensitive)', () => {
+            expect(toBool("KEY", "True")).toEqual({ok: true, data: true});
+        });
+
+        it('returns false for "FALSE"', () => {
+            expect(toBool("KEY", "FALSE")).toEqual({ok: true, data: false});
+        });
+
+        it('returns false for "False"', () => {
+            expect(toBool("KEY", "False")).toEqual({ok: true, data: false});
+        });
+
+        it('returns false for "0"', () => {
+            expect(toBool("KEY", "0")).toEqual({ok: true, data: false});
+        });
+
+        it("fails on invalid boolean string", () => {
+            expect(toBool("KEY", "yes")).toEqual({
+                ok: false,
+                ctx: "KEY: expected boolean, got 'yes'",
+            });
+        });
+
+        it("fails on empty string", () => {
+            expect(toBool("KEY", "")).toEqual({
+                ok: false,
+                ctx: "KEY: expected boolean, got ''",
+            });
+        });
+    });
+
+    describe("schemaParser", () => {
+        beforeEach(() => {
+            schemaParser.set(null);
+        });
+
+        it("toJSON without schema works as before", () => {
+            mockFile(envFile('CFG={"a":1}'));
+            const result = loadEnv(
+                {path: ".env", transformKeys: false},
+                {CFG: toJSON<{a: number}>()}
+            );
+            expect(result).toEqual({ok: true, data: {CFG: {a: 1}}});
+        });
+
+        it("toJSON with schema calls the registered parser", () => {
+            const mySchema = {type: "object"};
+            schemaParser.set((obj, schema) => {
+                if (schema === mySchema && typeof obj === "object" && obj !== null) {
+                    return success(obj);
+                }
+                return failure("validation failed");
+            });
+
+            mockFile(envFile('CFG={"a":1}'));
+            const result = loadEnv(
+                {path: ".env", transformKeys: false},
+                {CFG: toJSON<{a: number}>(mySchema)}
+            );
+            expect(result).toEqual({ok: true, data: {CFG: {a: 1}}});
+        });
+
+        it("toJSON with schema returns failure when parser rejects", () => {
+            schemaParser.set((_obj, _schema) => {
+                return failure("invalid shape");
+            });
+
+            mockFile(envFile('CFG={"a":1}'));
+            const result = loadEnv({path: ".env", transformKeys: false}, {CFG: toJSON({})});
+            expect(result).toEqual({ok: false, ctx: ["invalid shape"]});
+        });
+
+        it("toJSON with schema but no parser set fails", () => {
+            mockFile(envFile('CFG={"a":1}'));
+            const result = loadEnv(
+                {path: ".env", transformKeys: false},
+                {CFG: toJSON<{a: number}>({})}
+            );
+            expect(result).toEqual({
+                ok: false,
+                ctx: [
+                    "CFG: schema provided but no schemaParser is set. Please use '.schemaParser.set(...).loadEnv(...)'",
+                ],
+            });
+        });
+
+        it("parser set but no schema passed does NOT call parser", () => {
+            let called = false;
+            schemaParser.set(() => {
+                called = true;
+                return success({});
+            });
+
+            mockFile(envFile('CFG={"a":1}'));
+            const result = loadEnv(
+                {path: ".env", transformKeys: false},
+                {CFG: toJSON<{a: number}>()}
+            );
+            expect(called).toBe(false);
+            expect(result).toEqual({ok: true, data: {CFG: {a: 1}}});
+        });
+
+        it("neither parser nor schema just parses JSON", () => {
+            mockFile(envFile('CFG={"x":"y"}'));
+            const result = loadEnv(
+                {path: ".env", transformKeys: false},
+                {CFG: toJSON<{x: string}>()}
+            );
+            expect(result).toEqual({ok: true, data: {CFG: {x: "y"}}});
+        });
+
+        it("set() returns loadEnv for chaining", () => {
+            const chained = schemaParser.set((_obj, _schema) => success(_obj));
+            mockFile(envFile('CFG={"x":true}'));
+            const result = chained.loadEnv(
+                {path: ".env", transformKeys: false},
+                {CFG: toJSON<{x: boolean}>({})}
+            );
+            expect(result).toEqual({ok: true, data: {CFG: {x: true}}});
+        });
+
+        it("parser receives the parsed JSON and the schema", () => {
+            const mySchema = {fields: ["a", "b"]};
+            let receivedObj: unknown;
+            let receivedSchema: unknown;
+            schemaParser.set((obj, schema) => {
+                receivedObj = obj;
+                receivedSchema = schema;
+                return success(obj);
+            });
+
+            mockFile(envFile('DATA={"a":1,"b":2}'));
+            loadEnv({path: ".env", transformKeys: false}, {DATA: toJSON(mySchema)});
+            expect(receivedObj).toEqual({a: 1, b: 2});
+            expect(receivedSchema).toBe(mySchema);
+        });
+
+        it("type infers correctly with toJSON schema", () => {
+            type Config = {host: string; port: number};
+            const configSchema = {};
+            schemaParser.set((obj, _schema) => success(obj));
+
+            mockFile(envFile('DB={"host":"localhost","port":5432}'));
+            const result = unwrap(
+                loadEnv(
+                    {path: ".env", transformKeys: true},
+                    {DB: toJSON<Config>(configSchema), APP_NAME: withDefault(toString, "app")}
+                )
+            );
+
+            type assertion = Expect<Equal<typeof result, {db: Config; appName: string}>>;
+
+            expect(result).toEqual({
+                db: {host: "localhost", port: 5432},
+                appName: "app",
+            });
         });
     });
 
