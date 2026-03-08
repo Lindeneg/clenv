@@ -1,6 +1,6 @@
 {
     "name": "@lindeneg/cl-env",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "description": "Type-safe, leak-free environment variable loader",
     "type": "module",
     "main": "dist/index.js",
