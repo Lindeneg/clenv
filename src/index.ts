@@ -63,7 +63,6 @@ export function loadEnv<TOpts extends LoadEnvOpts, TEnv extends {[key: string]: 
         const eqIdx = line.indexOf("=");
         if (eqIdx === -1) continue;
         let [key, value] = [line.slice(0, eqIdx).trim(), line.slice(eqIdx + 1).trim()];
-        // TODO: maybe see if we ever hit this branch (i don't think we do)
         if (!key) continue;
         const transform = config[key];
         // ignore unknown key
