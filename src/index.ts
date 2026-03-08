@@ -7,24 +7,6 @@ export type LoadEnvOpts = {
     encoding?: BufferEncoding;
 };
 
-/**
- * Strongly typed loading of variables from a file.
- *
- * It does not modify `process.env` in order to prevent leakage of secrets to child processes.
- *
- * Instead it just returns a strongly typed object.
- *
- * The keys are inferred from the `config` argument. The values of each
- * key is derived from the return type of the `transform` function you provide.
- *
- * If `transformKeys` is set to `true`, then all properties `WITH_THIS_FORMAT` are converted
- * to `camelCase` and this is enforced at the type-level and of course in the object itself.
- * If it is set to false, all property names remain untouched and are used as is.
- *
- * If `path` is an array of strings, the contents will be passed to `path.join` and the
- * result will be passed onto `readFile`. If `path` is a string, it's used as is.
- *
- * */
 export function loadEnv<TOpts extends LoadEnvOpts, TEnv extends {[key: string]: TransformFn}>(
     opts: TOpts,
     config: TEnv
@@ -55,46 +37,23 @@ export function loadEnv<TOpts extends LoadEnvOpts, TEnv extends {[key: string]: 
         }
     }
 
-    // convert line breaks to same format
-    const lines = fileResult.data.replace(/\r\n?/gm, "\n").split("\n");
-    for (let line of lines) {
-        line = line.trim();
-        if (!line) continue;
-        // skip commented lines
-        if (line.startsWith("#")) continue;
-        // strip export (for bash compatibility)
-        if (line.startsWith("export ")) line = line.slice(7);
-        const eqIdx = line.indexOf("=");
-        if (eqIdx === -1) continue;
-        let [key, value] = [line.slice(0, eqIdx).trim(), line.slice(eqIdx + 1).trim()];
-        if (!key) continue;
-        const transform = config[key];
+    const entries = parseDotenv(fileResult.data);
+    for (const entry of entries) {
+        const transform = config[entry.key];
         // ignore unknown key
         if (!transform) continue;
-        if (!value) value = "";
-        // save this for " check
-        const first = value[0];
-        // remove surrounding quotes
-        value = value.replace(/^(['"`])([\s\S]*)\1$/, "$2");
-        // expand newlines if double quoted
-        if (first === '"') {
-            value = value.replace(/\\n/g, "\n");
-            value = value.replace(/\\r/g, "\r");
-        }
-        seenKeys.add(key);
+        seenKeys.add(entry.key);
         try {
-            const transformResult = transform(key, value);
+            const transformResult = transform(entry.key, entry.value);
             if (!transformResult.ok) {
-                errors.push(transformResult.ctx);
+                errors.push(`${entry.key}:L${entry.line}: ${transformResult.ctx}`);
                 continue;
             }
-            value = transformResult.data;
+            setVal(entry.key, transformResult.data);
         } catch (err) {
-            errors.push(`${key}: transform function threw: ` + err);
+            errors.push(`${entry.key}:L${entry.line}: transform function threw: ` + err);
             continue;
         }
-
-        setVal(key, value);
     }
 
     // check if we have covered all keys
@@ -108,7 +67,7 @@ export function loadEnv<TOpts extends LoadEnvOpts, TEnv extends {[key: string]: 
             if (result.ok) {
                 setVal(cfgKey, result.data);
             } else {
-                errors.push(result.ctx);
+                errors.push(`${cfgKey}: ${result.ctx}`);
             }
         }
     }
@@ -274,4 +233,170 @@ function toNumber(key: string, v: string, parser: "int" | "float") {
     const n = parser === "int" ? parseInt(v, 10) : parseFloat(v);
     if (Number.isNaN(n)) return failure(`${key}: failed to convert '${v}' to a number`);
     return success(n);
+}
+
+type ParsedEntry = {
+    key: string;
+    value: string;
+    line: number;
+};
+
+function parseDotenv(raw: string): ParsedEntry[] {
+    // strip BOM
+    if (raw.charCodeAt(0) === 0xfeff) {
+        raw = raw.slice(1);
+    }
+    // normalize line endings
+    raw = raw.replace(/\r\n?/g, "\n");
+
+    const entries: ParsedEntry[] = [];
+    let pos = 0;
+    let line = 1;
+
+    function advance(): string | undefined {
+        const ch = raw[pos++];
+        if (ch === "\n") line++;
+        return ch;
+    }
+
+    function skipInlineWhitespace() {
+        while (pos < raw.length && (raw[pos] === " " || raw[pos] === "\t")) {
+            pos++;
+        }
+    }
+
+    function skipToNewline() {
+        while (pos < raw.length && raw[pos] !== "\n") pos++;
+        if (pos < raw.length) advance();
+    }
+
+    while (pos < raw.length) {
+        skipInlineWhitespace();
+
+        if (raw[pos] === "\n") {
+            advance();
+            continue;
+        }
+
+        // comment line
+        if (raw[pos] === "#") {
+            skipToNewline();
+            continue;
+        }
+
+        // strip `export ` prefix
+        if (raw.startsWith("export ", pos)) {
+            pos += 7;
+            skipInlineWhitespace();
+        }
+
+        const entryLine = line;
+
+        // read key
+        let key = "";
+        while (pos < raw.length) {
+            const c = raw[pos];
+            if (c === "=" || c === " " || c === "\t" || c === "\n") break;
+            key += advance();
+        }
+
+        if (!key) {
+            skipToNewline();
+            continue;
+        }
+
+        skipInlineWhitespace();
+
+        if (raw[pos] !== "=") {
+            skipToNewline();
+            continue;
+        }
+        // consume =
+        advance();
+
+        skipInlineWhitespace();
+
+        let value = "";
+        const quote = raw[pos];
+
+        if (quote === '"') {
+            // double-quoted: escape sequences, multiline
+            advance();
+            while (pos < raw.length) {
+                const c = raw[pos];
+                if (c === "\\") {
+                    advance();
+                    if (pos >= raw.length) break;
+                    const esc = advance();
+                    switch (esc) {
+                        case "n":
+                            value += "\n";
+                            break;
+                        case "r":
+                            value += "\r";
+                            break;
+                        case "t":
+                            value += "\t";
+                            break;
+                        case "\\":
+                            value += "\\";
+                            break;
+                        case '"':
+                            value += '"';
+                            break;
+                        default:
+                            value += "\\" + esc;
+                            break;
+                    }
+                } else if (c === '"') {
+                    advance();
+                    break;
+                } else {
+                    value += advance();
+                }
+            }
+        } else if (quote === "'") {
+            // single-quoted: literal, no escapes, multiline
+            advance();
+            while (pos < raw.length) {
+                if (raw[pos] === "'") {
+                    advance();
+                    break;
+                }
+                value += advance();
+            }
+        } else if (quote === "`") {
+            // backtick-quoted: literal, no escapes, multiline
+            advance();
+            while (pos < raw.length) {
+                if (raw[pos] === "`") {
+                    advance();
+                    break;
+                }
+                value += advance();
+            }
+        } else {
+            // unquoted: single line, inline comments, trim trailing whitespace
+            while (pos < raw.length && raw[pos] !== "\n") {
+                if (
+                    raw[pos] === "#" &&
+                    value.length > 0 &&
+                    (raw[pos - 1] === " " || raw[pos - 1] === "\t")
+                ) {
+                    value = value.trimEnd();
+                    break;
+                }
+                value += raw[pos];
+                pos++;
+            }
+            value = value.trimEnd();
+        }
+
+        // consume rest of line after quoted value
+        skipToNewline();
+
+        entries.push({key, value, line: entryLine});
+    }
+
+    return entries;
 }
