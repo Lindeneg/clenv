@@ -75,7 +75,7 @@ export function loadEnv<TOpts extends LoadEnvOpts, TEnv extends {[key: string]: 
         // save this for " check
         const first = value[0];
         // remove surrounding quotes
-        value = value.replace(/^(['"`])([\s\S]*)\1$/gm, "$2");
+        value = value.replace(/^(['"`])([\s\S]*)\1$/, "$2");
         // expand newlines if double quoted
         if (first === '"') {
             value = value.replace(/\\n/g, "\n");
