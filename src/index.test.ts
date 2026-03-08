@@ -1,6 +1,7 @@
 import {writeFileSync, mkdirSync, rmSync} from "node:fs";
 import {join} from "node:path";
 import {tmpdir} from "node:os";
+
 import {describe, it, expect, afterAll, beforeAll, vi} from "vitest";
 import {Expect, Equal} from "type-testing";
 import {
@@ -567,19 +568,14 @@ describe("features", () => {
         });
 
         it("leaves mixed-case keys untouched", () => {
-            const tmpDir = join(tmpdir(), "cl-env-test-keys");
-            mkdirSync(tmpDir, {recursive: true});
-            writeFileSync(join(tmpDir, ".env"), "FOO_BAR=1\nhelloThere=2\nblah=3\n", "utf8");
-
             const result = loadEnv(
-                {files: [".env"], transformKeys: true, basePath: tmpDir},
+                {files: [".env.transformkeys"], transformKeys: true, basePath: fixtures},
                 {FOO_BAR: toString, helloThere: toString, blah: toString}
             );
             expect(result).toEqual({
                 ok: true,
                 data: {fooBar: "1", helloThere: "2", blah: "3"},
             });
-            rmSync(tmpDir, {recursive: true, force: true});
         });
 
         it("does not transform keys when transformKeys is false", () => {
@@ -824,23 +820,12 @@ describe("features", () => {
     });
 
     describe("radix", () => {
-        const tmpDir = join(tmpdir(), "cl-env-test-radix");
-
-        beforeAll(() => {
-            mkdirSync(tmpDir, {recursive: true});
-            writeFileSync(join(tmpDir, ".env"), "HEX_PORT=1A\nDEC_PORT=3000\n", "utf8");
-        });
-
-        afterAll(() => {
-            rmSync(tmpDir, {recursive: true, force: true});
-        });
-
         it("uses radix function for parseInt", () => {
             const result = loadEnv(
                 {
-                    files: [".env"],
+                    files: [".env.radix"],
                     transformKeys: false,
-                    basePath: tmpDir,
+                    basePath: fixtures,
                     radix: (key) => (key === "HEX_PORT" ? 16 : undefined),
                 },
                 {HEX_PORT: toInt, DEC_PORT: toInt}
@@ -1139,13 +1124,9 @@ describe("type inference", () => {
     });
 
     it("preserves mixed-case keys with transformKeys: true", () => {
-        const tmpDir = join(tmpdir(), "cl-env-test-types");
-        mkdirSync(tmpDir, {recursive: true});
-        writeFileSync(join(tmpDir, ".env"), "FOO_BAR=1\nhelloThere=2\n", "utf8");
-
         const result = unwrap(
             loadEnv(
-                {files: [".env"], transformKeys: true, basePath: tmpDir},
+                {files: [".env.transformkeys"], transformKeys: true, basePath: fixtures},
                 {FOO_BAR: toString, helloThere: toString}
             )
         );
@@ -1162,7 +1143,6 @@ describe("type inference", () => {
 
         expect(result.fooBar).toBe("1");
         expect(result.helloThere).toBe("2");
-        rmSync(tmpDir, {recursive: true, force: true});
     });
 
     it("infers withDefault type correctly", () => {
@@ -1194,18 +1174,29 @@ describe("type inference", () => {
             return success(d);
         };
 
-        const tmpDir = join(tmpdir(), "cl-env-test-custom");
-        mkdirSync(tmpDir, {recursive: true});
-        writeFileSync(join(tmpDir, ".env"), "CREATED=2024-01-15\n", "utf8");
-
         const result = unwrap(
-            loadEnv({files: [".env"], transformKeys: false, basePath: tmpDir}, {CREATED: toDate})
+            loadEnv(opts([".env.custom"]), {CREATED: toDate})
         );
 
         type assertion = Expect<Equal<typeof result, {CREATED: Date}>>;
 
         expect(result.CREATED).toBeInstanceOf(Date);
-        rmSync(tmpDir, {recursive: true, force: true});
+    });
+
+    it("infers union type from custom transform", () => {
+        const toLogLevel = (key: string, v: string) => {
+            if (["debug", "info", "warn", "error"].includes(v))
+                return success(v as "debug" | "info" | "warn" | "error");
+            return failure(`${key}: invalid log level '${v}'`);
+        };
+
+        const result = unwrap(
+            loadEnv(opts([".env.custom"]), {LOG_LEVEL: toLogLevel})
+        );
+
+        type assertion = Expect<Equal<typeof result, {LOG_LEVEL: "debug" | "info" | "warn" | "error"}>>;
+
+        expect(result.LOG_LEVEL).toBe("debug");
     });
 
     it("infers schemaParser + transformKeys combined", () => {
