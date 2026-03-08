@@ -1,5 +1,5 @@
 {
-    "name": "cl-env",
+    "name": "@lindeneg/cl-env",
     "version": "0.0.1",
     "description": "Type-safe, leak-free environment variable loader",
     "type": "module",
