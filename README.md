@@ -2,12 +2,18 @@
 
 Type-safe, leak-free .env loading for Node.js.
 
-- **Full type inference** — return type is derived from your config. Transforms, defaults, key casing — all reflected at the type level.
-- **No exceptions** — every operation returns a `Result<T, E>`. Errors are accumulated, never thrown.
-- **No `process.env` mutation** — returns a plain object. Secrets stay out of child processes.
-- **Proper dotenv parser** — multiline quoted values, escape sequences, inline comments, variable expansion, BOM stripping, CRLF normalization.
-- **Layered files** — load `[".env", ".env.local"]` with last-wins semantics.
-- **Composable** — combine `withRequired`, `withDefault`, built-in transforms, or write your own.
+- **Full type inference**
+    - return type is derived from your config. Transforms, defaults, key casing, **all reflected at the type level**.
+- **No exceptions**
+    - every operation returns a `Result<T, E>`. Errors are accumulated, never thrown.
+- **No `process.env` mutation**
+    - returns a plain object. Secrets stay out of child processes.
+- **Proper dotenv parser**
+    - multiline quoted values, escape sequences, inline comments, variable expansion, BOM stripping, CRLF normalization.
+- **Layered files**
+    - load `[".env", ".env.local"]` with last-wins semantics.
+- **Composable**
+    - combine `withRequired`, `withDefault`, built-in transforms, or write your own.
 
 ## Install
 
