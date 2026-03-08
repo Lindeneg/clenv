@@ -29,13 +29,24 @@ const env = unwrap(
 // { databaseUrl: string, port: number, debug: boolean }
 ```
 
-**Options:**
+## Error handling
 
-| Option | Type | Description |
-|---|---|---|
-| `path` | `string \| string[]` | Path to the env file. Arrays are passed to `path.join`. |
-| `transformKeys` | `boolean` | Convert `UPPER_SNAKE_CASE` keys to `camelCase`. |
-| `encoding` | `BufferEncoding` | File encoding. Defaults to `"utf8"`. |
+Errors are accumulated. If multiple keys fail validation, you get all errors at once:
+
+```ts
+const result = loadEnv(
+    { path: ".env", transformKeys: false },
+    {
+        PORT: withRequired(toInt),
+        API_KEY: withRequired(toString),
+        DB_HOST: withRequired(toString),
+    }
+);
+
+if (!result.ok) {
+    // result.ctx: ["PORT: is required but is missing", "API_KEY: is required but is missing"]
+}
+```
 
 ### Transform functions
 
@@ -89,25 +100,6 @@ const env = unwrap(
 - Surrounding quotes (`"`, `'`, `` ` ``) are stripped from values.
 - `\n` and `\r` are expanded inside double-quoted values only.
 - `\r\n` and `\r` line endings are normalized.
-
-## Error handling
-
-Errors are accumulated. If multiple keys fail validation, you get all errors at once:
-
-```ts
-const result = loadEnv(
-    { path: ".env", transformKeys: false },
-    {
-        PORT: withRequired(toInt),
-        API_KEY: withRequired(toString),
-        DB_HOST: withRequired(toString),
-    }
-);
-
-if (!result.ok) {
-    // result.ctx: ["PORT: is required but is missing", "API_KEY: is required but is missing"]
-}
-```
 
 ## License
 
