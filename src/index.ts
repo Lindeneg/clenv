@@ -12,9 +12,6 @@ export type LoadEnvOpts = {
     radix?: RadixFn;
 };
 
-//type LoadedEnvOpts = Required<Pick<LoadEnvOpts, "files" | "transformKeys">> &
-//    Omit<LoadEnvOpts, "files" | "transformKeys">;
-
 export function loadEnv<TOpts extends LoadEnvOpts, TConfig extends Config>(
     opts: TOpts,
     config: TConfig
@@ -168,12 +165,14 @@ export function unwrap<T extends Result<any, any>>(
 }
 
 export function toString(key: string, v: string | undefined): Result<string> {
-    if (v === undefined) return failure(`${key}: no value provided (use withDefault or withRequired)`);
+    if (v === undefined)
+        return failure(`${key}: no value provided (use withDefault or withRequired)`);
     return success(v);
 }
 
 export function toBool(key: string, v: string | undefined): Result<boolean> {
-    if (v === undefined) return failure(`${key}: no value provided (use withDefault or withRequired)`);
+    if (v === undefined)
+        return failure(`${key}: no value provided (use withDefault or withRequired)`);
     const lower = v.toLowerCase();
     if (lower === "true" || v === "1") return success(true);
     if (lower === "false" || v === "0") return success(false);
@@ -181,25 +180,29 @@ export function toBool(key: string, v: string | undefined): Result<boolean> {
 }
 
 export function toInt(key: string, v: string | undefined, ctx: TransformContext): Result<number> {
-    if (v === undefined) return failure(`${key}: no value provided (use withDefault or withRequired)`);
+    if (v === undefined)
+        return failure(`${key}: no value provided (use withDefault or withRequired)`);
     return toNumber(key, v, ctx, "int");
 }
 
 export function toFloat(key: string, v: string | undefined, ctx: TransformContext): Result<number> {
-    if (v === undefined) return failure(`${key}: no value provided (use withDefault or withRequired)`);
+    if (v === undefined)
+        return failure(`${key}: no value provided (use withDefault or withRequired)`);
     return toNumber(key, v, ctx, "float");
 }
 
 export function toStringArray(delimiter = ",") {
     return function (key: string, v: string | undefined): Result<string[]> {
-        if (v === undefined) return failure(`${key}: no value provided (use withDefault or withRequired)`);
+        if (v === undefined)
+            return failure(`${key}: no value provided (use withDefault or withRequired)`);
         return success(v.split(delimiter).map((s) => s.trim()));
     };
 }
 
 export function toIntArray(delimiter = ",") {
     return function (key: string, v: string | undefined, ctx: TransformContext): Result<number[]> {
-        if (v === undefined) return failure(`${key}: no value provided (use withDefault or withRequired)`);
+        if (v === undefined)
+            return failure(`${key}: no value provided (use withDefault or withRequired)`);
         const parts = v.split(delimiter).map((s) => s.trim());
         const out: number[] = [];
 
@@ -215,7 +218,8 @@ export function toIntArray(delimiter = ",") {
 
 export function toJSON<T>(schema?: unknown) {
     return function (k: string, v: string | undefined, ctx: TransformContext): Result<T> {
-        if (v === undefined) return failure(`${k}: no value provided (use withDefault or withRequired)`);
+        if (v === undefined)
+            return failure(`${k}: no value provided (use withDefault or withRequired)`);
         try {
             const json = JSON.parse(v);
             if (schema) {
@@ -349,7 +353,7 @@ function parseAllFiles(
             log?.("verbose", `parsed ${file}: ${entries.length} entries`);
             if (log) {
                 for (const w of warnings) {
-                    log("warn", `${file}:${w.message}`);
+                    log(w.level, `${file}:${w.message}`);
                 }
             }
         } else {
@@ -410,10 +414,7 @@ function mergeProcessEnv(
 
         if (includeProcessEnv === "overwrite") {
             const prev = expanded.getSource(key);
-            log?.(
-                "verbose",
-                `process.env: ${key}: overwrites${prev ? ` ${prev}` : ""} value`
-            );
+            log?.("verbose", `process.env: ${key}: overwrites${prev ? ` ${prev}` : ""} value`);
             expanded.set(key, pVal, "process.env");
         } else if (!expanded.has(key)) {
             log?.("verbose", `process.env: ${key}: using as fallback`);
@@ -454,6 +455,7 @@ type ParsedEntry = {
 
 type ParseWarning = {
     line: number;
+    level: "warn" | "error";
     message: string;
 };
 
@@ -525,6 +527,7 @@ function parseDotenv(raw: string): {entries: ParsedEntry[]; warnings: ParseWarni
         if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
             warnings.push({
                 line: entryLine,
+                level: "warn",
                 message: `L${entryLine}: ${key}: invalid key name (expected [A-Za-z_][A-Za-z0-9_]*)`,
             });
         }
@@ -585,9 +588,11 @@ function parseDotenv(raw: string): {entries: ParsedEntry[]; warnings: ParseWarni
             }
             value = parts.join("");
             if (!terminated) {
+                const consumed = line - entryLine;
                 warnings.push({
                     line: entryLine,
-                    message: `L${entryLine}: ${key}: unterminated double quote, read to EOF`,
+                    level: "error",
+                    message: `L${entryLine}: ${key}: unterminated double quote, consumed ${consumed} line(s) to EOF`,
                 });
             }
         } else if (quote === "'") {
@@ -606,9 +611,11 @@ function parseDotenv(raw: string): {entries: ParsedEntry[]; warnings: ParseWarni
             }
             if (!terminated) {
                 value = raw.slice(start, pos);
+                const consumed = line - entryLine;
                 warnings.push({
                     line: entryLine,
-                    message: `L${entryLine}: ${key}: unterminated single quote, read to EOF`,
+                    level: "error",
+                    message: `L${entryLine}: ${key}: unterminated single quote, consumed ${consumed} line(s) to EOF`,
                 });
             }
         } else if (quote === "`") {
@@ -627,9 +634,11 @@ function parseDotenv(raw: string): {entries: ParsedEntry[]; warnings: ParseWarni
             }
             if (!terminated) {
                 value = raw.slice(start, pos);
+                const consumed = line - entryLine;
                 warnings.push({
                     line: entryLine,
-                    message: `L${entryLine}: ${key}: unterminated backtick quote, read to EOF`,
+                    level: "error",
+                    message: `L${entryLine}: ${key}: unterminated backtick quote, consumed ${consumed} line(s) to EOF`,
                 });
             }
         } else {
@@ -652,6 +661,7 @@ function parseDotenv(raw: string): {entries: ParsedEntry[]; warnings: ParseWarni
             if (commentAt < 0 && value.length < rawValue.length) {
                 warnings.push({
                     line: entryLine,
+                    level: "warn",
                     message: `L${entryLine}: ${key}: suspicious trailing whitespace in unquoted value`,
                 });
             }
@@ -688,31 +698,17 @@ function expand(
             }
             const fromEnv = env[name];
             if (fromEnv !== undefined) {
-                log?.("verbose", `${entry.source}:L${entry.line}: ${key}: expanded $${name} from process.env`);
+                log?.(
+                    "verbose",
+                    `${entry.source}:L${entry.line}: ${key}: expanded $${name} from process.env`
+                );
                 return fromEnv;
             }
-            log?.("warn", `${entry.source}:L${entry.line}: ${key}: $${name} is not defined, left unexpanded`);
+            log?.(
+                "warn",
+                `${entry.source}:L${entry.line}: ${key}: $${name} is not defined, left unexpanded`
+            );
             return original;
         }
     );
 }
-
-class Foo {}
-
-const k = unwrap(
-    loadEnv(
-        {files: [".env"], transformKeys: true},
-        {
-            OPTIONAL: withOptional(toInt),
-            DATABASE_URL: withRequired(toString),
-            PORT: withDefault(toInt, 3000),
-            RANGE_VALUES: toIntArray(),
-            GOOGLE_ID: toString,
-            GOOGLE_MID: toString,
-            PROCESS_TEST: toJSON<Foo>(),
-            CUSTOM_STUFF_THING: withRequired((k, v) => {
-                return success(new Foo());
-            }),
-        }
-    )
-);
