@@ -244,7 +244,7 @@ function toCamelCase(s: string): string {
 }
 
 function toNumber(key: string, v: string, parser: "int" | "float") {
-    const n = parser === "int" ? parseInt(v) : parseFloat(v);
+    const n = parser === "int" ? parseInt(v, 10) : parseFloat(v);
     if (Number.isNaN(n)) return failure(`${key}: failed to convert '${v}' to a number`);
     return success(n);
 }
