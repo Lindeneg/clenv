@@ -1,10 +1,16 @@
-import path from "node:path";
-import fs from "node:fs";
+import {join as nodeJoin} from "node:path";
+import {readFileSync} from "node:fs";
+import {ProcessEventMap} from "node:process";
 
 export type LoadEnvOpts = {
+    files: string[];
     transformKeys: boolean;
-    path: string | string[];
+    basePath?: string;
     encoding?: BufferEncoding;
+    includeProcessEnv?: boolean | "overwrite"; // TODO actually implement
+    log?: boolean;
+    schemaParser?: SchemaParser;
+    radix?: RadixFn;
 };
 
 export function loadEnv<TOpts extends LoadEnvOpts, TEnv extends {[key: string]: TransformFn}>(
@@ -21,38 +27,63 @@ export function loadEnv<TOpts extends LoadEnvOpts, TEnv extends {[key: string]: 
     string[]
 > {
     const errors: string[] = [];
-    const env: Record<PropertyKey, unknown> = {};
+    const env: Record<PropertyKey, unknown> = {}; // TODO use output type
+    const rawEnv: Record<string, unknown> = {}; // TODO use output type BUT with partial
     const seenKeys = new Set<string>();
 
-    const envPath = Array.isArray(opts.path) ? path.join(...opts.path) : opts.path;
+    const ctx: TransformContext = {
+        rawEnv,
+        schemaParser: opts.schemaParser,
+        radix: opts.radix,
+    };
 
-    const fileResult = readFile(envPath, opts.encoding ?? "utf8");
-    if (!fileResult.ok) return failure([fileResult.ctx]);
+    const fileContents: string[] = [];
 
-    function setVal(key: string, value: unknown) {
-        if (opts.transformKeys) {
-            env[toCamelCase(key)] = value;
+    for (let filePath of opts.files) {
+        if (opts.basePath) {
+            filePath = nodeJoin(opts.basePath, filePath);
+        }
+        const fileResult = readFile(filePath, opts.encoding ?? "utf8");
+        if (fileResult.ok) {
+            fileContents.push(fileResult.data);
         } else {
-            env[key] = value;
+            errors.push(fileResult.ctx);
         }
     }
 
-    const entries = parseDotenv(fileResult.data);
-    for (const entry of entries) {
-        const transform = config[entry.key];
-        // ignore unknown key
-        if (!transform) continue;
-        seenKeys.add(entry.key);
-        try {
-            const transformResult = transform(entry.key, entry.value);
-            if (!transformResult.ok) {
-                errors.push(`${entry.key}:L${entry.line}: ${transformResult.ctx}`);
+    function setVal(key: string, value: unknown) {
+        const finalKey = opts.transformKeys ? toCamelCase(key) : key;
+        (env as any)[finalKey] = value;
+        rawEnv[key] = value;
+    }
+
+    for (const fileContent of fileContents) {
+        const entries = parseDotenv(fileContent);
+        for (const entry of entries) {
+            const transform = config[entry.key];
+            if (!transform) {
+                if (opts.log) {
+                    console.warn(`${entry.key}:L${entry.line}: is not a known key.`);
+                }
                 continue;
             }
-            setVal(entry.key, transformResult.data);
-        } catch (err) {
-            errors.push(`${entry.key}:L${entry.line}: transform function threw: ` + err);
-            continue;
+            if (opts.log && seenKeys.has(entry.key)) {
+                console.warn(
+                    `${entry.key}:L${entry.line}: is a duplicate key. It will overwrite previous value.`
+                );
+            }
+            seenKeys.add(entry.key);
+            try {
+                const transformResult = transform(entry.key, entry.value, ctx);
+                if (!transformResult.ok) {
+                    errors.push(`${entry.key}:L${entry.line}: ${transformResult.ctx}`);
+                    continue;
+                }
+                setVal(entry.key, transformResult.data);
+            } catch (err) {
+                errors.push(`${entry.key}:L${entry.line}: transform function threw: ` + err);
+                continue;
+            }
         }
     }
 
@@ -63,7 +94,7 @@ export function loadEnv<TOpts extends LoadEnvOpts, TEnv extends {[key: string]: 
     if (seenKeys.size < cfgEntries.length) {
         for (const [cfgKey, cfgFn] of cfgEntries) {
             if (seenKeys.has(cfgKey)) continue;
-            const result = cfgFn(cfgKey, "");
+            const result = cfgFn(cfgKey, "", ctx);
             if (result.ok) {
                 setVal(cfgKey, result.data);
             } else {
@@ -82,20 +113,6 @@ export type SchemaParser<TSchema = any, TReturn = any> = (
     schema: TSchema,
     key: string
 ) => Result<TReturn, string>;
-
-export const schemaParser = (() => {
-    let parser: SchemaParser | null = null;
-
-    return {
-        get() {
-            return parser;
-        },
-        set(newParser: SchemaParser | null) {
-            parser = newParser;
-            return {loadEnv};
-        },
-    };
-})();
 
 type ResultSuccess<TData> = {
     data: TData;
@@ -135,46 +152,47 @@ export function toBool(key: string, v: string): Result<boolean> {
     return failure(`${key}: expected boolean, got '${v}'`);
 }
 
-export function toInt(key: string, v: string): Result<number> {
-    return toNumber(key, v, "int");
+export function toInt(key: string, v: string, ctx: TransformContext): Result<number> {
+    return toNumber(key, v, ctx, "int");
 }
 
-export function toFloat(key: string, v: string): Result<number> {
-    return toNumber(key, v, "float");
+export function toFloat(key: string, v: string, ctx: TransformContext): Result<number> {
+    return toNumber(key, v, ctx, "float");
 }
 
 export function toStringArray(delimiter = ",") {
     return function (_: string, v: string): Result<string[]> {
-        return success(v.split(delimiter));
+        return success(v.split(delimiter).map((s) => s.trim()));
     };
 }
 
 export function toIntArray(delimiter = ",") {
-    return function (key: string, v: string): Result<number[]> {
-        const splitted = v.split(delimiter);
-        const arr: number[] = [];
-        for (const val of splitted) {
-            const result = toInt(key, val);
-            if (!result.ok) return result;
-            arr.push(result.data);
+    return function (key: string, v: string, ctx: TransformContext): Result<number[]> {
+        const parts = v.split(delimiter).map((s) => s.trim());
+        const out: number[] = [];
+
+        for (const p of parts) {
+            const r = toInt(key, p, ctx);
+            if (!r.ok) return r;
+            out.push(r.data);
         }
-        return success(arr);
+
+        return success(out);
     };
 }
 
 export function toJSON<T>(schema?: unknown) {
-    return function (k: string, v: string): Result<T> {
+    return function (k: string, v: string, ctx: TransformContext): Result<T> {
         try {
             const json = JSON.parse(v);
             if (schema) {
-                const parser = schemaParser.get();
-                if (!parser) {
+                if (!ctx.schemaParser) {
                     return failure(
                         `${k}: schema provided but no schemaParser is set. ` +
-                            "Please use '.schemaParser.set(...).loadEnv(...)'"
+                            "Please use 'schemaParser' in options."
                     );
                 }
-                return parser(json, schema, k);
+                return ctx.schemaParser(json, schema, k);
             }
             return success(json);
         } catch (err) {
@@ -187,16 +205,24 @@ export function withDefault<TTransform extends TransformFn>(
     transform: TTransform,
     defaultValue: InferValueFromTransformFn<TTransform>
 ) {
-    return function (key: string, val: string): Result<InferValueFromTransformFn<TTransform>> {
+    return function (
+        key: string,
+        val: string,
+        ctx: TransformContext
+    ): Result<InferValueFromTransformFn<TTransform>> {
         if (!val) return success(defaultValue);
-        return transform(key, val);
+        return transform(key, val, ctx);
     };
 }
 
 export function withRequired<TTransform extends TransformFn>(transform: TTransform) {
-    return function (key: string, val: string): Result<InferValueFromTransformFn<TTransform>> {
+    return function (
+        key: string,
+        val: string,
+        ctx: TransformContext
+    ): Result<InferValueFromTransformFn<TTransform>> {
         if (!val) return failure(`${key}: is required but is missing`);
-        return transform(key, val);
+        return transform(key, val, ctx);
     };
 }
 
@@ -210,14 +236,26 @@ type PascalTail<S extends string> = S extends `${infer Head}_${infer Tail}`
 
 type SafeCamelCase<S extends string> = S extends Uppercase<S> ? CamelCase<S> : S;
 
-type TransformFn = (key: string, val: string) => Result<any, string>;
+type RadixFn = (key: string) => number | undefined;
+
+type TransformContext = {
+    rawEnv: Record<string, unknown>;
+    schemaParser?: SchemaParser;
+    radix?: RadixFn;
+};
+
+type TransformFn<TData = any> = (
+    key: string,
+    val: string,
+    ctx: TransformContext
+) => Result<TData, string>;
 
 type InferValueFromTransformFn<TTransform extends TransformFn> =
     ReturnType<TTransform> extends Result<infer TData> ? TData : never;
 
 function readFile(path: string, encoding: BufferEncoding): Result<string> {
     try {
-        const file = fs.readFileSync(path, {encoding}).toString();
+        const file = readFileSync(path, {encoding});
         return success(file);
     } catch (err) {
         return failure(err instanceof Error ? err.message : `failed to read env file: '${path}'`);
@@ -229,8 +267,13 @@ function toCamelCase(s: string): string {
     return s.toLowerCase().replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 }
 
-function toNumber(key: string, v: string, parser: "int" | "float") {
-    const n = parser === "int" ? parseInt(v, 10) : parseFloat(v);
+function toNumber(key: string, v: string, ctx: TransformContext, parser: "int" | "float") {
+    let n;
+    if (parser === "int") {
+        n = parseInt(v, ctx.radix ? ctx.radix(key) : 10);
+    } else {
+        n = parseFloat(v);
+    }
     if (Number.isNaN(n)) return failure(`${key}: failed to convert '${v}' to a number`);
     return success(n);
 }
@@ -400,3 +443,24 @@ function parseDotenv(raw: string): ParsedEntry[] {
 
     return entries;
 }
+
+// TEST CODE JUST TO CHECK IT WORKS HERE IN THE EDITOR; JUST DISGARD WILL BE REMOVED!!
+
+class Foo {}
+
+const k = unwrap(
+    loadEnv(
+        {files: [".env"], transformKeys: true},
+        {
+            DATABASE_URL: withRequired(toString),
+            PORT: withDefault(toInt, 3000),
+            RANGE_VALUES: toIntArray(),
+            GOOGLE_ID: toString,
+            GOOGLE_MID: toString,
+            PROCESS_TEST: toJSON<ProcessEventMap>(),
+            CUSTOM_STUFF_THING: withRequired((k, v) => {
+                return success(new Foo());
+            }),
+        }
+    )
+);
