@@ -8,7 +8,7 @@ Load `.env` files, validate values with composable transforms, and produce a **f
 - **Proper dotenv parser** — multiline values, escape sequences, variable expansion, inline comments, layered files.
 - **Composable validation** — combine `withRequired`, `withDefault`, built-in transforms, or write your own.
 - **Structured errors** — errors accumulate; nothing fails silently.
-- **No `process.env` mutation** — returns a plain object.
+- **No `process.env` mutation** — returns a plain object, secrets never leak to child processes.
 - **Zero dependencies.**
 
 ---
@@ -39,11 +39,9 @@ npm i @lindeneg/cl-env
 
 ## Why cl-env?
 
-Most type-safe env solutions validate `process.env` but something else has to populate it first (usually `dotenv`, which mutates the global object). If you also want variable expansion, you add `dotenv-expand`. Layered files? `dotenv-flow`. That's three packages before you write a single validation rule.
+`cl-env` owns the full env loading pipeline: parsing, variable expansion, layered files, validation, and typing, in a single zero-dependency package that never mutates `process.env`.
 
-`cl-env` handles the entire pipeline — parsing, expansion, layering, validation, and typing — in one dependency, returning a plain object. `process.env` is never written to and only read if you explicitly opt in.
-
-If your stack already populates `process.env` for you (Next.js, Nuxt, Vite, etc.), libraries like [t3-env](https://env.t3.gg) or [envalid](https://github.com/af/envalid) are great choices and purpose-built for that model. `cl-env` is for when you want to own the full loading pipeline yourself.
+If your framework already manages `process.env` for you, validation-only libraries like [t3-env](https://env.t3.gg) or [envalid](https://github.com/af/envalid) are purpose-built for that model. `cl-env` is for when you want to control the loading yourself.
 
 ## Quick start
 
@@ -245,7 +243,7 @@ const env = unwrap(loadEnv(opts, config));
 
 ### Error handling
 
-Errors are accumulated — all config keys are validated, and every failure is reported, not just the first one.
+Errors are accumulated. All config keys are validated, and every failure is reported, not just the first one.
 
 ```ts
 type EnvError = {
@@ -270,8 +268,8 @@ At least one source of values must be configured:
 | `[".env"]` | — | any | `.env` must exist, error if missing |
 | `[".env"]` | `[".env.local"]` | any | `.env` required; `.env.local` loaded if present, skipped if not |
 | `[".env"]` (missing) | `[".env.local"]` (exists) | any | Error: required file missing |
-| `[]` | `[".env"]` | `false`/undefined | OK — optional files are a valid source |
-| `[]` | none | `"fallback"` or `"override"` | OK — `process.env` is a valid source |
+| `[]` | `[".env"]` | `false`/undefined | OK, optional files are a valid source |
+| `[]` | none | `"fallback"` or `"override"` | OK, `process.env` is a valid source |
 
 ### Variable expansion
 
@@ -286,7 +284,7 @@ URL=http://${HOST}:$PORT
 - Expansion runs after deduplication (last-wins) in **dependency order** (topological sort), so forward references work regardless of file order.
 - References resolve against other keys in the files first, then fall back to `process.env`.
 - Unresolved references are left unchanged (e.g. `$MISSING` stays as `$MISSING`).
-- Cyclic references are detected and logged as warnings — values are expanded best-effort but may be incomplete.
+- Cyclic references are detected and logged as warnings. Values are expanded best-effort but may be incomplete.
 - Single-quoted values are **not** expanded (they're literal).
 
 ### Parsing rules
