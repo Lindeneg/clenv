@@ -24,7 +24,7 @@ npm i @lindeneg/cl-env
 ## Quick start
 
 ```ts
-import { loadEnv, unwrap, toString, toInt, toBool, withDefault, withRequired } from "@lindeneg/cl-env";
+import { loadEnv, unwrap, toString, toInt, toBool, withOptional, withDefault, withRequired } from "@lindeneg/cl-env";
 
 const env = unwrap(
     loadEnv(
@@ -32,15 +32,15 @@ const env = unwrap(
         {
             DATABASE_URL: withRequired(toString),
             PORT: withDefault(toInt, 3000),
-            DEBUG: toBool,
+            DEBUG: withOptional(toBool),
         }
     )
 );
 
-// env: { databaseUrl: string, port: number, debug: boolean }
+// env: { databaseUrl: string, port: number, debug: boolean | undefined }
 ```
 
-With `transformKeys: false`, keys are preserved as-is: `{ DATABASE_URL: string, PORT: number, DEBUG: boolean }`, enforced at the type-level and of course in the object itself.
+With `transformKeys: false`, keys are preserved as-is: `{ DATABASE_URL: string, PORT: number, DEBUG: boolean | undefined }`, enforced at the type-level and of course in the object itself.
 
 ## Result type
 
@@ -56,8 +56,8 @@ const result = loadEnv(
 );
 
 if (!result.ok) {
-    // result.ctx: string[] — all errors, with line numbers
-    // ["PORT:L3: PORT: is required but is missing", "API_KEY:L4: is required but is missing"]
+    // result.ctx: string[] — all errors, with source and line numbers
+    // [".env:L3: PORT: is required but is missing", ".env:L4: API_KEY: is required but is missing"]
     console.error(result.ctx.join("\n"));
     process.exit(1);
 }
@@ -85,9 +85,26 @@ type LoadEnvOpts = {
 };
 ```
 
+## Transform context
+
+Every transform receives a `TransformContext` as its third argument:
+
+```ts
+type TransformContext = {
+    rawEnv: Record<string, string>;   // all resolved key-value pairs so far
+    schemaParser?: SchemaParser;      // from options
+    radix?: (key: string) => number;  // from options
+    log?: Logger;                     // from options
+    line?: number;                    // line number where the key was defined
+    source?: string;                  // file path, "process.env", or "none"
+};
+```
+
+`line` and `source` are set per-key and are useful for custom transforms that want to produce rich error messages.
+
 ## Transforms
 
-Each config value is a transform function: `(key, value, ctx) => Result<T>`. The return type determines the type of that key in the result.
+Each config value is a transform function: `(key, value, ctx) => Result<T>`. `value` is `string | undefined` — `undefined` means the key was not found in any file. The return type determines the type of that key in the result.
 
 ### Built-in transforms
 
@@ -105,21 +122,23 @@ Each config value is a transform function: `(key, value, ctx) => Result<T>`. The
 
 | Wrapper | Description |
 |---|---|
-| `withRequired(transform)` | Fails if value is empty or key is missing |
-| `withDefault(transform, defaultValue)` | Uses `defaultValue` when value is empty or key is missing |
+| `withRequired(transform)` | Fails if key is missing (`undefined`) — empty values pass through to the transform |
+| `withDefault(transform, defaultValue)` | Uses `defaultValue` when key is missing (`undefined`) — empty values pass through to the transform |
+| `withOptional(transform)` | Returns `undefined` when key is missing, otherwise delegates to the inner transform |
 
-Without a wrapper, a missing key passes an empty string to the transform.
+Without a wrapper, a missing key passes `undefined` to the transform. All built-in transforms fail on `undefined` with a message suggesting `withDefault` or `withRequired`.
 
 ### Custom transforms
 
 ```ts
-import { loadEnv, unwrap, success, failure } from "@lindeneg/cl-env";
+import { loadEnv, unwrap, success, failure, type TransformContext } from "@lindeneg/cl-env";
 
 const env = unwrap(
     loadEnv(
         { files: [".env"], transformKeys: false },
         {
             LOG_LEVEL: (key, v) => {
+                if (v === undefined) return failure(`${key}: no value provided`);
                 if (["debug", "info", "warn", "error"].includes(v)) return success(v as "debug" | "info" | "warn" | "error");
                 return failure(`${key}: invalid log level '${v}'`);
             },
@@ -152,7 +171,7 @@ PORT=3000
 URL=http://${HOST}:$PORT
 ```
 
-Expansion resolves against previously defined keys, then falls back to `process.env`. Single-quoted values are **not** expanded (they're literal).
+Expansion resolves against previously defined keys, then falls back to `process.env`. Unresolved references are left unchanged (e.g. `$MISSING` stays as `$MISSING`). Single-quoted values are **not** expanded (they're literal).
 
 ## Process env merge
 
@@ -214,7 +233,9 @@ The logger reports: duplicate keys, unknown keys, suspicious whitespace, variabl
 - Single-quoted and backtick-quoted values: literal (no escapes), multiline
 - Unquoted values: single line, trailing whitespace trimmed
 - BOM (`\uFEFF`) stripped, `\r\n` and `\r` normalized to `\n`
-- Line numbers tracked and included in error messages (`KEY:L32: error`)
+- Line numbers tracked and included in error messages (`file:L32: KEY: error`)
+- Unterminated quotes are detected and logged at error level (subsequent entries may be consumed)
+- Invalid key names (not matching `[A-Za-z_][A-Za-z0-9_]*`) produce a warning
 
 ## License
 
