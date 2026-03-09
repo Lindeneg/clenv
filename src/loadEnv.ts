@@ -140,26 +140,19 @@ export function loadEnv<const TOpts extends LoadEnvOpts, TConfig extends Config>
 
     if (errors.length) return failure(errors);
 
-    if (log) {
-        const fileCounts = new Map<string, number>();
-        for (const entry of allEntries) {
-            fileCounts.set(entry.source, (fileCounts.get(entry.source) ?? 0) + 1);
-        }
-        const parts: string[] = [];
-        for (const [file, count] of fileCounts) {
-            parts.push(`${count} from ${file}`);
-        }
-        log("debug", `loaded ${seenKeys.size} vars: ${parts.join(", ")}`);
-    }
+    if (log) log("debug", `successfully loaded ${seenKeys.size} vars`);
 
     return success(env as any);
 }
 
-const LOG_CONFIG: Record<LogLevel, {method: "error" | "warn" | "log" | "debug"; color: string; pad: string}> = {
-    error:   {method: "error", color: "\x1b[31m", pad: "  "},
-    warn:    {method: "warn",  color: "\x1b[33m", pad: "   "},
-    debug:   {method: "debug", color: "\x1b[36m", pad: "  "},
-    verbose: {method: "log",   color: "\x1b[2m",  pad: ""},
+const LOG_CONFIG: Record<
+    LogLevel,
+    {method: "error" | "warn" | "log" | "debug"; color: string; pad: string}
+> = {
+    error: {method: "error", color: "\x1b[31m", pad: "  "},
+    warn: {method: "warn", color: "\x1b[33m", pad: "   "},
+    debug: {method: "debug", color: "\x1b[36m", pad: "  "},
+    verbose: {method: "log", color: "\x1b[2m", pad: ""},
 };
 
 function defaultLogger(level: LogLevel, message: string) {

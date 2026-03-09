@@ -92,35 +92,15 @@ describe("logging", () => {
         expect(unknownWarnings[0]!.message).toContain(".env.basic");
     });
 
-    it("logs summary with per-file counts", () => {
+    it("logs success summary", () => {
         const {messages, logger} = capture();
         loadEnv(opts([".env.basic"], {logger}), {HOST: toString, PORT: toInt});
 
         const summary = messages.find(
-            (m) => m.level === "debug" && m.message.includes("loaded 2 vars")
+            (m) => m.level === "debug" && m.message.includes("successfully loaded")
         );
         expect(summary).toBeDefined();
-        expect(summary!.message).toContain("from .env.basic");
-    });
-
-    it("logs summary with multiple files", () => {
-        const {messages, logger} = capture();
-        loadEnv(
-            {
-                files: [".env.layered.base", ".env.layered.local"],
-                transformKeys: false,
-                basePath: fixtures,
-                logger,
-            },
-            {HOST: toString, PORT: toString, DEBUG: toString, SECRET: toString}
-        );
-
-        const summary = messages.find(
-            (m) => m.level === "debug" && m.message.includes("loaded")
-        );
-        expect(summary).toBeDefined();
-        expect(summary!.message).toContain(".env.layered.base");
-        expect(summary!.message).toContain(".env.layered.local");
+        expect(summary!.message).toBe("successfully loaded 2 vars");
     });
 
     it("logs expansion with source info", () => {
@@ -315,9 +295,9 @@ describe("logging", () => {
         const parsedLine = lines.find((l) => l.includes("parsed .env.basic"));
         expect(parsedLine).toBe("[cl-env:verbose] parsed .env.basic: 4 entries");
 
-        // check a debug line (loaded summary)
-        const summaryLine = lines.find((l) => l.includes("loaded"));
-        expect(summaryLine).toBe("[cl-env:debug]   loaded 1 vars: 4 from .env.basic");
+        // check a debug line (success summary)
+        const summaryLine = lines.find((l) => l.includes("successfully loaded"));
+        expect(summaryLine).toBe("[cl-env:debug]   successfully loaded 1 vars");
 
         // check a warn line (unknown keys)
         const warnLine = lines.find((l) => l.includes("not a known key"));
