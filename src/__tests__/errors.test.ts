@@ -209,7 +209,7 @@ describe("unwrap error messages", () => {
                 })
             );
         } catch (e: any) {
-            const lines = e.message.split("\n");
+            const lines = e.message.trimStart().split("\n");
             expect(lines).toHaveLength(2);
             expect(lines[0]).toBe(
                 ".env.basic:L1: HOST: failed to convert 'localhost' to a number"
@@ -249,7 +249,7 @@ describe("unwrap error messages", () => {
                 })
             );
         } catch (e: any) {
-            const lines = e.message.split("\n");
+            const lines = e.message.trimStart().split("\n");
             expect(lines).toHaveLength(3);
             // HOST fails transform — has source and line
             expect(lines[0]).toBe(
