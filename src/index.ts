@@ -1,4 +1,5 @@
 export {loadEnv} from "./loadEnv.js";
+export {loadEnvAsync} from "./loadEnvAsync.js";
 export {success, failure, unwrap, type Result, type EnvError} from "./result.js";
 export {
     type LogLevel,

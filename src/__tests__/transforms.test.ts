@@ -1,9 +1,7 @@
 import {join} from "node:path";
-
 import {describe, it, expect} from "vitest";
 import {
     loadEnv,
-    unwrap,
     toString,
     toInt,
     toFloat,
@@ -27,7 +25,7 @@ const opts = (files: string[], extra: Partial<Parameters<typeof loadEnv>[0]> = {
     ({files, transformKeys: false, basePath: fixtures, ...extra}) as const;
 
 // minimal ctx for direct transform unit tests
-const ctx: TransformContext = {rawEnv: {}};
+const ctx: TransformContext = {expandedEnv: {}};
 
 // ─── transforms (unit) ──────────────────────────────────────────────────────
 
@@ -105,13 +103,13 @@ describe("transforms", () => {
         });
 
         it("respects radix from context", () => {
-            const hexCtx: TransformContext = {rawEnv: {}, radix: () => 16};
+            const hexCtx: TransformContext = {expandedEnv: {}, radix: () => 16};
             expect(toInt("K", "ff", hexCtx)).toEqual({ok: true, data: 255});
         });
 
         it("radix can be per-key", () => {
             const mixedCtx: TransformContext = {
-                rawEnv: {},
+                expandedEnv: {},
                 radix: (key: string) => (key === "HEX" ? 16 : undefined),
             };
             expect(toInt("HEX", "a", mixedCtx)).toEqual({ok: true, data: 10});
@@ -158,11 +156,17 @@ describe("transforms", () => {
         });
 
         it("trims whitespace from elements", () => {
-            expect(toStringArray()("K", "a , b , c", ctx)).toEqual({ok: true, data: ["a", "b", "c"]});
+            expect(toStringArray()("K", "a , b , c", ctx)).toEqual({
+                ok: true,
+                data: ["a", "b", "c"],
+            });
         });
 
         it("supports custom delimiter", () => {
-            expect(toStringArray("|")("K", "x|y|z", ctx)).toEqual({ok: true, data: ["x", "y", "z"]});
+            expect(toStringArray("|")("K", "x|y|z", ctx)).toEqual({
+                ok: true,
+                data: ["x", "y", "z"],
+            });
         });
 
         it("returns single-element array for no delimiter match", () => {
@@ -203,15 +207,24 @@ describe("transforms", () => {
 
     describe("toFloatArray", () => {
         it("splits and parses floats", () => {
-            expect(toFloatArray()("K", "1.1,2.2,3.3", ctx)).toEqual({ok: true, data: [1.1, 2.2, 3.3]});
+            expect(toFloatArray()("K", "1.1,2.2,3.3", ctx)).toEqual({
+                ok: true,
+                data: [1.1, 2.2, 3.3],
+            });
         });
 
         it("trims whitespace from elements", () => {
-            expect(toFloatArray()("K", "1.5 , 2.5 , 3.5", ctx)).toEqual({ok: true, data: [1.5, 2.5, 3.5]});
+            expect(toFloatArray()("K", "1.5 , 2.5 , 3.5", ctx)).toEqual({
+                ok: true,
+                data: [1.5, 2.5, 3.5],
+            });
         });
 
         it("supports custom delimiter", () => {
-            expect(toFloatArray("|")("K", "3.14|2.71", ctx)).toEqual({ok: true, data: [3.14, 2.71]});
+            expect(toFloatArray("|")("K", "3.14|2.71", ctx)).toEqual({
+                ok: true,
+                data: [3.14, 2.71],
+            });
         });
 
         it("fails if any element is not a number", () => {
@@ -282,7 +295,7 @@ describe("transforms", () => {
                 if (s === schema) return success(obj);
                 return failure("wrong schema");
             };
-            const ctxWithParser: TransformContext = {rawEnv: {}, schemaParser: parser};
+            const ctxWithParser: TransformContext = {expandedEnv: {}, schemaParser: parser};
             expect(toJSON<{a: number}>(schema)("K", '{"a":1}', ctxWithParser)).toEqual({
                 ok: true,
                 data: {a: 1},
@@ -299,7 +312,7 @@ describe("transforms", () => {
         it("does not call parser when no schema provided", () => {
             let called = false;
             const ctxWithParser: TransformContext = {
-                rawEnv: {},
+                expandedEnv: {},
                 schemaParser: () => {
                     called = true;
                     return success({});

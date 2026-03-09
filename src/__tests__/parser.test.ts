@@ -1,7 +1,6 @@
 import {writeFileSync, mkdirSync, rmSync} from "node:fs";
 import {join} from "node:path";
 import {tmpdir} from "node:os";
-
 import {describe, it, expect, afterAll, beforeAll} from "vitest";
 import {
     loadEnv,
@@ -329,10 +328,10 @@ describe("parser", () => {
             const messages: Array<{level: LogLevel; message: string}> = [];
             const logger: Logger = (level, message) => messages.push({level, message});
 
-            loadEnv(
-                opts([".env.unterminated-double"], {logger}),
-                {GOOD: toString, BAD_DOUBLE: toString}
-            );
+            loadEnv(opts([".env.unterminated-double"], {logger}), {
+                GOOD: toString,
+                BAD_DOUBLE: toString,
+            });
 
             const warn = messages.find(
                 (m) => m.level === "warn" && m.message.includes("unterminated double quote")
@@ -346,10 +345,10 @@ describe("parser", () => {
             const messages: Array<{level: LogLevel; message: string}> = [];
             const logger: Logger = (level, message) => messages.push({level, message});
 
-            loadEnv(
-                opts([".env.unterminated-single"], {logger}),
-                {GOOD: toString, BAD_SINGLE: toString}
-            );
+            loadEnv(opts([".env.unterminated-single"], {logger}), {
+                GOOD: toString,
+                BAD_SINGLE: toString,
+            });
 
             const warn = messages.find(
                 (m) => m.level === "warn" && m.message.includes("unterminated single quote")
@@ -362,10 +361,10 @@ describe("parser", () => {
             const messages: Array<{level: LogLevel; message: string}> = [];
             const logger: Logger = (level, message) => messages.push({level, message});
 
-            loadEnv(
-                opts([".env.unterminated-backtick"], {logger}),
-                {GOOD: toString, BAD_BACKTICK: toString}
-            );
+            loadEnv(opts([".env.unterminated-backtick"], {logger}), {
+                GOOD: toString,
+                BAD_BACKTICK: toString,
+            });
 
             const warn = messages.find(
                 (m) => m.level === "warn" && m.message.includes("unterminated backtick quote")
@@ -378,15 +377,12 @@ describe("parser", () => {
             const messages: Array<{level: LogLevel; message: string}> = [];
             const logger: Logger = (level, message) => messages.push({level, message});
 
-            const result = loadEnv(
-                opts([".env.unterminated-combined"], {logger}),
-                {
-                    GOOD: toString,
-                    BAD: toString,
-                    AFTER_BAD: withOptional(toString),
-                    LAST: withOptional(toString),
-                }
-            );
+            const result = loadEnv(opts([".env.unterminated-combined"], {logger}), {
+                GOOD: toString,
+                BAD: toString,
+                AFTER_BAD: withOptional(toString),
+                LAST: withOptional(toString),
+            });
 
             expect(result.ok).toBe(true);
             if (result.ok) {
@@ -400,7 +396,9 @@ describe("parser", () => {
             }
 
             // warning log should report lines consumed
-            const warn = messages.find((m) => m.level === "warn" && m.message.includes("unterminated"));
+            const warn = messages.find(
+                (m) => m.level === "warn" && m.message.includes("unterminated")
+            );
             expect(warn).toBeDefined();
             expect(warn!.message).toMatch(/consumed \d+ line/);
         });

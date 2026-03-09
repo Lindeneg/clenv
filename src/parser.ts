@@ -1,6 +1,6 @@
 import type {ParsedEntry, ParseWarning} from "./types.js";
 
-export function parseDotenv(raw: string): {entries: ParsedEntry[]; warnings: ParseWarning[]} {
+export function parseDotenv(raw: string, source: string): {entries: ParsedEntry[]; warnings: ParseWarning[]} {
     // strip BOM
     if (raw.charCodeAt(0) === 0xfeff) {
         raw = raw.slice(1);
@@ -208,7 +208,7 @@ export function parseDotenv(raw: string): {entries: ParsedEntry[]; warnings: Par
         skipToNewline();
 
         const quoted = quote === '"' || quote === "'" || quote === "`" ? quote : undefined;
-        entries.push({key, value, line: entryLine, source: "", ...(quoted && {quoted})});
+        entries.push({key, value, line: entryLine, source, ...(quoted && {quoted})});
     }
 
     return {entries, warnings};

@@ -1,13 +1,8 @@
 import {writeFileSync, mkdirSync, rmSync} from "node:fs";
 import {join} from "node:path";
 import {tmpdir} from "node:os";
-
 import {describe, it, expect} from "vitest";
-import {
-    loadEnv,
-    toString,
-    withOptional,
-} from "../index.js";
+import {loadEnv, toString, withOptional} from "../index.js";
 
 const fixtures = join(import.meta.dirname, "fixtures");
 const opts = (files: string[], extra: Partial<Parameters<typeof loadEnv>[0]> = {}) =>
@@ -52,7 +47,8 @@ describe("large files", () => {
 describe("fuzz", () => {
     // helper: generate random string
     function randStr(len: number) {
-        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-. #${}='\"`\\\n\t";
+        const chars =
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-. #${}='\"`\\\n\t";
         let s = "";
         for (let i = 0; i < len; i++) {
             s += chars[Math.floor(Math.random() * chars.length)];
@@ -112,10 +108,7 @@ describe("fuzz", () => {
         const config: Record<string, typeof toString> = {};
         for (const e of entries) config[e.key] = toString;
 
-        const result = loadEnv(
-            {files: [".env"], transformKeys: false, basePath: tmpDir},
-            config
-        );
+        const result = loadEnv({files: [".env"], transformKeys: false, basePath: tmpDir}, config);
         expect(result.ok).toBe(true);
         if (result.ok) {
             for (const e of entries) {
