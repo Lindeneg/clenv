@@ -156,7 +156,7 @@ Every transform receives a `TransformContext` as its third argument, which provi
 
 ## Error handling
 
-Errors are accumulated — all config keys are validated, and every failure is reported, not just the first one.
+Errors are accumulated. All config keys are validated, and every failure is reported, not just the first one.
 
 ```ts
 type EnvError = {
