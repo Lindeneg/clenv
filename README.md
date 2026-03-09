@@ -152,7 +152,7 @@ const env = unwrap(
 // env: { CREATED: Date }
 ```
 
-Every transform receives a `TransformContext` as its third argument, which provides access to all resolved string values, the schema parser, radix function, logger, and the source file/line number of the key being transformed. The `TransformFn` type is exported for writing reusable transforms in separate files.
+Every transform receives a `TransformContext` as its third argument, which provides access to all resolved string values, the schema parser, radix function, logger, and the source file/line number of the key being transformed. `source` is the file name where the key was defined (e.g. `".env.local"`), `"process.env"` if the value came from a process.env merge, or `"none"` if the key was not found in any source. `line` is the line number in the source file, or `undefined` when there is no file. The `TransformFn` type is exported for writing reusable transforms in separate files.
 
 ## Error handling
 
