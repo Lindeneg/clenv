@@ -1,4 +1,4 @@
-###### unstable, under heavy development with possible breaking changes until 1.0.0 is released
+###### under development with possible breaking changes until 1.0.0 is released
 
 # cl-env
 
