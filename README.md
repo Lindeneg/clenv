@@ -132,13 +132,36 @@ Options are passed inline as the first argument to `loadEnv`. Only `files` and `
 
 ### `files`
 
-Files to load, in order:
+Required files to load, in order:
 
 ```ts
-files: [".env", ".env.local"]
+files: [".env"]
 ```
 
-Duplicate keys across files use last-wins semantics.
+Every file in `files` must be readable — a missing required file is always an error. Duplicate keys across files use last-wins semantics.
+
+### `optionalFiles`
+
+Files to load if they exist, silently skipped otherwise:
+
+```ts
+optionalFiles: [".env.local", ".env.development"]
+```
+
+Optional files are read after required files. Duplicate keys follow the same last-wins rule, so optional files can override required file values.
+
+At least one source of values must be configured. If `files` is empty, `optionalFiles` is empty/undefined, and `includeProcessEnv` is disabled, `loadEnv` returns an error.
+
+#### File resolution scenarios
+
+| `files` | `optionalFiles` | `includeProcessEnv` | Result |
+|---|---|---|---|
+| `[]` | none | `false`/undefined | Error: no sources configured |
+| `[".env"]` | — | any | `.env` must exist, error if missing |
+| `[".env"]` | `[".env.local"]` | any | `.env` must exist; `.env.local` loaded if present, skipped if not |
+| `[".env"]` (missing) | `[".env.local"]` (exists) | any | Error: `.env` failed to read (required files are always strict) |
+| `[]` | `[".env"]` | `false`/undefined | OK — optional files are a source |
+| `[]` | none | `"fallback"` or `"override"` | OK — `process.env` is a source |
 
 ### `transformKeys`
 
@@ -236,8 +259,8 @@ Each config value is a transform function `(key, value, ctx) => Result<T>`, wher
 | `toString` | `string` | Returns value as-is |
 | `toInt` | `number` | Parses integer via `parseInt` (respects `radix` option) |
 | `toFloat` | `number` | Parses float |
-| `toBool` | `boolean` | `true/TRUE/True/1` → `true`, `false/FALSE/False/0` → `false`, anything else fails |
-| `toEnum(...values)` | union of `values` | Succeeds if value is one of the provided strings (case-sensitive) |
+| `toBool` | `boolean` | `true/TRUE/True/1` → `true`, `false/FALSE/False/0` → `false`, anything else fails (case-insensitive) |
+| `toEnum(...values)` | union of `values` | Succeeds if value matches one of the provided strings exactly (case-sensitive) |
 | `toJSON<T>(schema?)` | `T` | Parses JSON, optionally validates with a schema parser |
 | `toStringArray(delimiter?)` | `string[]` | Splits by delimiter (default `,`), trims elements |
 | `toIntArray(delimiter?)` | `number[]` | Splits and parses each element as integer |
@@ -287,11 +310,9 @@ type EnvError = {
 
 ### Strict file resolution
 
-Every file listed in `files` must be readable. If a file is missing or unreadable, that is always an error — even if all config keys are satisfied by other files. If you list `[".env", ".env.local"]` and `.env.local` doesn't exist, the result is a failure containing the file-read error alongside any transform errors. If no files produce any entries and there are file errors, `loadEnv` returns early with just the file errors (without running transforms).
+Every file listed in `files` must be readable. If a file is missing or unreadable, that is always an error — even if all config keys are satisfied by other files or `process.env`. If no files produce any entries and there are file errors, `loadEnv` returns early with just the file errors (without running transforms).
 
-If you want a file to be optional, don't include it in the `files` array — use `includeProcessEnv: "fallback"` or handle the layering yourself.
-
-This is something I will probably make opt-out at some point, so users can configure this behavior.
+Use `optionalFiles` for files that may or may not exist (e.g. `.env.local` for local development overrides).
 
 ## Variable expansion
 
@@ -303,7 +324,7 @@ PORT=3000
 URL=http://${HOST}:$PORT
 ```
 
-Expansion runs after deduplication (last-wins) and processes keys in order. A reference resolves against keys that have already been expanded, then falls back to `process.env`. Forward references (to keys not yet expanded) are left unresolved. Unresolved references are left unchanged (e.g. `$MISSING` stays as `$MISSING`). Single-quoted values are **not** expanded (they're literal).
+Expansion runs after deduplication (last-wins). Keys are expanded in dependency order (topological sort), so forward references work regardless of file order. A reference first resolves against other keys in the files, then falls back to `process.env`. Unresolved references are left unchanged (e.g. `$MISSING` stays as `$MISSING`). Cyclic references are detected and logged as warnings — the values are expanded best-effort but may be incomplete. Single-quoted values are **not** expanded (they're literal).
 
 ## Parsing rules
 
