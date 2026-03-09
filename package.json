@@ -1,6 +1,6 @@
 {
     "name": "@lindeneg/cl-env",
-    "version": "0.0.4",
+    "version": "0.1.0",
     "description": "Type-safe, leak-free environment variable loader",
     "type": "module",
     "main": "dist/index.js",
@@ -19,8 +19,8 @@
         "node": ">=18"
     },
     "scripts": {
-        "prepublishOnly": "rm -rf ./dist && npm run test && npm run build",
-        "build": "tsc -p tsconfig.build.json",
+        "prepublishOnly": "npm run build && npm run test",
+        "build": "rm -rf ./dist && tsc -p tsconfig.build.json",
         "test": "npm run test:impl && npm run test:types",
         "test:impl": "vitest run",
         "test:types": "tsc --noEmit"
