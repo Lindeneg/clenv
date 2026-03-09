@@ -1,5 +1,4 @@
 ###### unstable, under heavy development with breaking changes until 1.0.0 is released
-###### async support, variable expansion with forward-reference support, optional env files and non-silent cyclic reference handling -> all WIP
 
 # cl-env
 
@@ -11,6 +10,21 @@ Load `.env` files, validate values with composable transforms, and produce a **f
 - **Structured errors** — errors accumulate; nothing fails silently.
 - **No `process.env` mutation** — returns a plain object.
 - **Zero dependencies** — single-file implementation.
+
+## Table of contents
+
+- [Install](#install)
+- [Why cl-env?](#why-cl-env)
+- [Quick start](#quick-start)
+- [Core concepts](#core-concepts)
+- [Options](#options)
+  - [files](#files) · [optionalFiles](#optionalfiles) · [File resolution scenarios](#file-resolution-scenarios) · [transformKeys](#transformkeys) · [basePath](#basepath) · [encoding](#encoding) · [includeProcessEnv](#includeprocessenv) · [logger](#logger) · [schemaParser](#schemaparser) · [radix](#radix)
+- [Transforms](#transforms)
+  - [Built-in transforms](#built-in-transforms) · [Custom transforms](#custom-transforms)
+- [Error handling](#error-handling)
+  - [Strict file resolution](#strict-file-resolution)
+- [Variable expansion](#variable-expansion)
+- [Parsing rules](#parsing-rules)
 
 ## Install
 
