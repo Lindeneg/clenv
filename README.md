@@ -1,8 +1,8 @@
 # cl-env
 
-Type-safe dotenv replacement with zero runtime dependencies and minimal effort.
+Type-safe dotenv replacement with composable validation and zero runtime dependencies.
 
-Load `.env` files, validate values with composable transforms, and produce a fully typed configuration object.
+Load `.env` files, validate values with composable transforms, and produce a **fully typed** configuration object.
 
 - **Composable validation** — combine `withRequired`, `withDefault`, built-in transforms, or write your own.
 - **Full type inference** — transforms, defaults, key casing all reflected at the type level.
@@ -226,6 +226,8 @@ Controls how `process.env` is merged. Only keys defined in your config are read 
 | `"override"` | `process.env` wins over file values |
 | `false` | ignore `process.env` (default) |
 
+The merge happens after variable expansion. Values from `process.env` are taken as-is — any `$VAR` references in them will not be expanded. In fallback mode, a key that exists in a file with an empty string value (`KEY=`) is considered present, so `process.env` will not replace it.
+
 ### `logger`
 
 Enable the built-in logger or provide your own:
@@ -300,4 +302,3 @@ The parser is a character-by-character state machine with full dotenv compatibil
 ## License
 
 MIT
-
