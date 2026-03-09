@@ -1,4 +1,5 @@
-###### unstable, under heavy development with breaking changes until 1.0.0 is released. 
+###### unstable, under heavy development with breaking changes until 1.0.0 is released
+###### async support, variable expansion with forward-reference support, optional env files and non-silent cyclic reference handling -> all WIP
 
 # cl-env
 
