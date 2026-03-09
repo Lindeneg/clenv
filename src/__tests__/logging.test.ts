@@ -32,6 +32,7 @@ describe("logging", () => {
     });
 
     it("logger: true uses default logger (does not throw)", () => {
+        const spyLog = vi.spyOn(console, "log").mockImplementation(() => {});
         const spyDebug = vi.spyOn(console, "debug").mockImplementation(() => {});
         const spyWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
         const spyError = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -39,6 +40,7 @@ describe("logging", () => {
             {files: [".env.basic"], transformKeys: false, basePath: fixtures, logger: true},
             {HOST: toString}
         );
+        spyLog.mockRestore();
         spyDebug.mockRestore();
         spyWarn.mockRestore();
         spyError.mockRestore();

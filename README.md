@@ -39,6 +39,8 @@ const env = loadEnv(
 // result data typed as: { databaseUrl: string; port: number; float: number | undefined; debug: boolean }
 ```
 
+Key transformation only applies to fully uppercase keys. Mixed-case keys like `helloThere` are preserved. Trailing digits after underscores are kept: `DATABASE_URL_2` becomes `databaseUrl_2`.
+
 With `transformKeys: false`, keys are preserved as-is: `{ DATABASE_URL: string; PORT: number; FLOAT: number | undefined; DEBUG: boolean; }`, enforced at the type-level and of course in the object itself.
 
 ## Result type
@@ -100,15 +102,30 @@ type LoadEnvOpts = {
 };
 ```
 
+**Note:** If you extract the options into a separate variable typed as `LoadEnvOpts`, `transformKeys` widens to `boolean` and TypeScript can no longer determine the key casing at the type level. Pass options inline or use `as const` to preserve the literal type:
+
+```ts
+// works — literal type preserved
+const env = loadEnv({ files: [".env"], transformKeys: true }, config);
+
+// works — as const narrows the type
+const opts = { files: [".env"], transformKeys: true } as const;
+const env = loadEnv(opts, config);
+
+// broken — transformKeys widens to boolean, keys become a union of both casings
+const opts: LoadEnvOpts = { files: [".env"], transformKeys: true };
+const env = loadEnv(opts, config);
+```
+
 ## Transform context
 
 Every transform receives a `TransformContext` as its third argument:
 
 ```ts
 type TransformContext = {
-    rawEnv: Record<string, string>;   // all resolved key-value pairs so far
+    rawEnv: Record<string, string>;   // resolved string values from files/expansion, before transforms
     schemaParser?: SchemaParser;      // from options
-    radix?: (key: string) => number;  // from options
+    radix?: (key: string) => number | undefined;  // from options
     log?: Logger;                     // from options
     line?: number;                    // line number where the key was defined
     source?: string;                  // file path, "process.env", or "none"
@@ -126,12 +143,13 @@ Each config value is a transform function: `(key, value, ctx) => Result<T>`. `va
 | Transform | Output | Description |
 |---|---|---|
 | `toString` | `string` | Returns value as-is |
-| `toInt` | `number` | Parses integer (respects `radix` option) |
+| `toInt` | `number` | Parses integer via `parseInt` (respects `radix` option). Note: `parseInt` ignores trailing non-numeric characters (e.g. `'42abc'` parses as `42`). Use a custom transform if you need strict validation. |
 | `toFloat` | `number` | Parses float |
 | `toBool` | `boolean` | Strict: `true/TRUE/True/1` → `true`, `false/FALSE/False/0` → `false`, anything else fails |
 | `toJSON<T>(schema?)` | `T` | Parses JSON, optionally validates with schema parser |
 | `toStringArray(delimiter?)` | `string[]` | Splits by delimiter (default `,`), trims elements |
 | `toIntArray(delimiter?)` | `number[]` | Splits and parses each element as integer |
+| `toFloatArray(delimiter?)` | `number[]` | Splits and parses each element as float |
 
 ### Wrappers
 
@@ -163,6 +181,8 @@ const env = unwrap(
 // env: { LOG_LEVEL: "debug" | "info" | "warn" | "error" }
 ```
 
+TypeScript infers the return type from your `success(...)` calls, so explicit type annotations on custom transforms are not needed but available if desired.
+
 ## Layered files
 
 ```ts
@@ -186,7 +206,7 @@ PORT=3000
 URL=http://${HOST}:$PORT
 ```
 
-Expansion resolves against previously defined keys, then falls back to `process.env`. Unresolved references are left unchanged (e.g. `$MISSING` stays as `$MISSING`). Single-quoted values are **not** expanded (they're literal).
+Expansion runs after deduplication (last-wins), so all references see the final value of each key — not the value at the point of definition. This differs from classic dotenv's line-order expansion. Expansion resolves against previously defined keys, then falls back to `process.env`. Unresolved references are left unchanged (e.g. `$MISSING` stays as `$MISSING`). Single-quoted values are **not** expanded (they're literal).
 
 ## Process env merge
 
@@ -249,7 +269,7 @@ The logger reports: duplicate keys, unknown keys, suspicious whitespace, variabl
 - Unquoted values: single line, trailing whitespace trimmed
 - BOM (`\uFEFF`) stripped, `\r\n` and `\r` normalized to `\n`
 - Line numbers tracked and included in error messages (`file:L32: KEY: error`)
-- Unterminated quotes are detected and logged at error level (subsequent entries may be consumed)
+- Unterminated quotes are detected and logged as a warning. The parser continues with best-effort parsing — the unterminated value consumes all content to EOF, so subsequent entries in the same file will be missing. These missing keys will surface as transform errors if they use `withRequired`.
 - Invalid key names (not matching `[A-Za-z_][A-Za-z0-9_]*`) produce a warning
 
 ## License

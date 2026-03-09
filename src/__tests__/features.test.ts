@@ -155,6 +155,19 @@ describe("features", () => {
                 expect(result.data.CHAINED).toBe("http://localhost:3000/api");
             }
         });
+
+        it("cyclic references resolve to unresolved tokens (no infinite loop)", () => {
+            // A=$B is processed first — B hasn't been expanded yet, so $B is unresolved
+            // B=$A is processed second — A is "$B" (literal), so B becomes "$B"
+            delete process.env.A;
+            delete process.env.B;
+            const result = loadEnv(opts([".env.cyclic"]), {A: toString, B: toString});
+            expect(result.ok).toBe(true);
+            if (result.ok) {
+                expect(result.data.A).toBe("$B");
+                expect(result.data.B).toBe("$B");
+            }
+        });
     });
 
     describe("process.env merge", () => {
@@ -328,7 +341,7 @@ describe("features", () => {
             let capturedSource: string | undefined;
             const spy = (key: string, val: string | undefined, ctx: TransformContext) => {
                 capturedSource = ctx.source;
-                return toString(key, val);
+                return toString(key, val, ctx);
             };
 
             loadEnv(opts([".env.basic"]), {HOST: spy});
@@ -341,7 +354,7 @@ describe("features", () => {
             let capturedSource: string | undefined;
             const spy = (key: string, val: string | undefined, ctx: TransformContext) => {
                 capturedSource = ctx.source;
-                return toString(key, val);
+                return toString(key, val, ctx);
             };
 
             loadEnv(
@@ -372,7 +385,7 @@ describe("features", () => {
             let capturedLine: number | undefined;
             const spy = (key: string, val: string | undefined, ctx: TransformContext) => {
                 capturedLine = ctx.line;
-                return toString(key, val);
+                return toString(key, val, ctx);
             };
 
             // PORT is on line 2 of .env.basic
@@ -384,7 +397,7 @@ describe("features", () => {
             let capturedSource: string | undefined;
             const spy = (key: string, val: string | undefined, ctx: TransformContext) => {
                 capturedSource = ctx.source;
-                return toString(key, val);
+                return toString(key, val, ctx);
             };
 
             // PORT is in both files, .env.layered.local wins

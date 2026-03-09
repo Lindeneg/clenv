@@ -58,14 +58,16 @@ export function loadEnv<TOpts extends LoadEnvOpts, TConfig extends Config>(
     function setVal(key: string, value: unknown) {
         const finalKey = opts.transformKeys ? toCamelCase(key) : key;
         (env as any)[finalKey] = value;
-        rawEnv[key] = String(value);
     }
 
     for (const [key, value] of expanded) {
         const transform = config[key];
         if (!transform) continue;
         seenKeys.add(key);
+        // populate rawEnv with the resolved string value before transforms run
+        if (value !== undefined) rawEnv[key] = value;
         const entry = deduped.get(key);
+        // source should always resolve from expanded or entry; "unknown" is defensive
         const source = expanded.getSource(key) ?? entry?.source ?? "unknown";
         const ctx: TransformContext = {
             ...baseCtx,
@@ -164,18 +166,18 @@ export function unwrap<T extends Result<any, any>>(
     return r.data;
 }
 
-export function toString(key: string, v: string | undefined): Result<string> {
+export function toString(key: string, v: string | undefined, _ctx: TransformContext): Result<string> {
     if (v === undefined)
         return failure(`${key}: no value provided (use withDefault or withRequired)`);
     return success(v);
 }
 
-export function toBool(key: string, v: string | undefined): Result<boolean> {
+export function toBool(key: string, v: string | undefined, _ctx: TransformContext): Result<boolean> {
     if (v === undefined)
         return failure(`${key}: no value provided (use withDefault or withRequired)`);
     const lower = v.toLowerCase();
-    if (lower === "true" || v === "1") return success(true);
-    if (lower === "false" || v === "0") return success(false);
+    if (lower === "true" || lower === "1") return success(true);
+    if (lower === "false" || lower === "0") return success(false);
     return failure(`${key}: expected boolean, got '${v}'`);
 }
 
@@ -192,7 +194,7 @@ export function toFloat(key: string, v: string | undefined, ctx: TransformContex
 }
 
 export function toStringArray(delimiter = ",") {
-    return function (key: string, v: string | undefined): Result<string[]> {
+    return function (key: string, v: string | undefined, _ctx: TransformContext): Result<string[]> {
         if (v === undefined)
             return failure(`${key}: no value provided (use withDefault or withRequired)`);
         return success(v.split(delimiter).map((s) => s.trim()));
@@ -208,6 +210,23 @@ export function toIntArray(delimiter = ",") {
 
         for (const p of parts) {
             const r = toInt(key, p, ctx);
+            if (!r.ok) return r;
+            out.push(r.data);
+        }
+
+        return success(out);
+    };
+}
+
+export function toFloatArray(delimiter = ",") {
+    return function (key: string, v: string | undefined, ctx: TransformContext): Result<number[]> {
+        if (v === undefined)
+            return failure(`${key}: no value provided (use withDefault or withRequired)`);
+        const parts = v.split(delimiter).map((s) => s.trim());
+        const out: number[] = [];
+
+        for (const p of parts) {
+            const r = toFloat(key, p, ctx);
             if (!r.ok) return r;
             out.push(r.data);
         }
@@ -233,7 +252,7 @@ export function toJSON<T>(schema?: unknown) {
             }
             return success(json);
         } catch (err) {
-            return failure(`${k}: failed to convert to JSON`);
+            return failure(`${k}: failed to parse JSON: ${err instanceof Error ? err.message : String(err)}`);
         }
     };
 }
@@ -287,7 +306,7 @@ type RadixFn = (key: string) => number | undefined;
 export type TransformContext = {
     rawEnv: Record<string, string>;
     schemaParser?: SchemaParser;
-    radix?: RadixFn;
+    radix?: (key: string) => number | undefined;
     log?: Logger;
     line?: number;
     source?: string;
@@ -303,17 +322,16 @@ type InferValueFromTransformFn<TTransform extends TransformFn> =
     ReturnType<TTransform> extends Result<infer TData> ? TData : never;
 
 function defaultLogger(level: LogLevel, message: string) {
-    console[level === "error" ? "error" : level === "warn" ? "warn" : "debug"](
-        `[cl-env:${level}] ${message}`
-    );
+    const method = level === "error" ? "error" : level === "warn" ? "warn" : level === "verbose" ? "log" : "debug";
+    console[method](`[cl-env:${level}] ${message}`);
 }
 
 function readFile(path: string, encoding: BufferEncoding): Result<string> {
     try {
         const file = readFileSync(path, {encoding});
         return success(file);
-    } catch (err) {
-        return failure(err instanceof Error ? err.message : `failed to read env file: '${path}'`);
+    } catch (err: any) {
+        return failure(`failed to read '${path}': ${err?.code ?? (err instanceof Error ? err.message : String(err))}`);
     }
 }
 
@@ -353,7 +371,7 @@ function parseAllFiles(
             log?.("verbose", `parsed ${file}: ${entries.length} entries`);
             if (log) {
                 for (const w of warnings) {
-                    log(w.level, `${file}:${w.message}`);
+                    log("warn", `${file}:${w.message}`);
                 }
             }
         } else {
@@ -455,7 +473,6 @@ type ParsedEntry = {
 
 type ParseWarning = {
     line: number;
-    level: "warn" | "error";
     message: string;
 };
 
@@ -527,7 +544,6 @@ function parseDotenv(raw: string): {entries: ParsedEntry[]; warnings: ParseWarni
         if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
             warnings.push({
                 line: entryLine,
-                level: "warn",
                 message: `L${entryLine}: ${key}: invalid key name (expected [A-Za-z_][A-Za-z0-9_]*)`,
             });
         }
@@ -591,7 +607,6 @@ function parseDotenv(raw: string): {entries: ParsedEntry[]; warnings: ParseWarni
                 const consumed = line - entryLine;
                 warnings.push({
                     line: entryLine,
-                    level: "error",
                     message: `L${entryLine}: ${key}: unterminated double quote, consumed ${consumed} line(s) to EOF`,
                 });
             }
@@ -614,7 +629,6 @@ function parseDotenv(raw: string): {entries: ParsedEntry[]; warnings: ParseWarni
                 const consumed = line - entryLine;
                 warnings.push({
                     line: entryLine,
-                    level: "error",
                     message: `L${entryLine}: ${key}: unterminated single quote, consumed ${consumed} line(s) to EOF`,
                 });
             }
@@ -637,12 +651,12 @@ function parseDotenv(raw: string): {entries: ParsedEntry[]; warnings: ParseWarni
                 const consumed = line - entryLine;
                 warnings.push({
                     line: entryLine,
-                    level: "error",
                     message: `L${entryLine}: ${key}: unterminated backtick quote, consumed ${consumed} line(s) to EOF`,
                 });
             }
         } else {
             // unquoted: single line, inline comments, trim trailing whitespace — use slice
+            // pos++ (not advance()) is safe here: loop breaks on \n so line counter stays correct
             const start = pos;
             let commentAt = -1;
             while (pos < raw.length && raw[pos] !== "\n") {
@@ -661,7 +675,6 @@ function parseDotenv(raw: string): {entries: ParsedEntry[]; warnings: ParseWarni
             if (commentAt < 0 && value.length < rawValue.length) {
                 warnings.push({
                     line: entryLine,
-                    level: "warn",
                     message: `L${entryLine}: ${key}: suspicious trailing whitespace in unquoted value`,
                 });
             }

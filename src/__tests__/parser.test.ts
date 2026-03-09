@@ -311,7 +311,7 @@ describe("parser", () => {
     });
 
     describe("parser warnings", () => {
-        it("errors on unterminated double quote with lines consumed", () => {
+        it("warns on unterminated double quote with lines consumed", () => {
             const messages: Array<{level: LogLevel; message: string}> = [];
             const logger: Logger = (level, message) => messages.push({level, message});
 
@@ -320,15 +320,15 @@ describe("parser", () => {
                 {GOOD: toString, BAD_DOUBLE: toString}
             );
 
-            const err = messages.find(
-                (m) => m.level === "error" && m.message.includes("unterminated double quote")
+            const warn = messages.find(
+                (m) => m.level === "warn" && m.message.includes("unterminated double quote")
             );
-            expect(err).toBeDefined();
-            expect(err!.message).toContain("consumed");
-            expect(err!.message).toContain("to EOF");
+            expect(warn).toBeDefined();
+            expect(warn!.message).toContain("consumed");
+            expect(warn!.message).toContain("to EOF");
         });
 
-        it("errors on unterminated single quote with lines consumed", () => {
+        it("warns on unterminated single quote with lines consumed", () => {
             const messages: Array<{level: LogLevel; message: string}> = [];
             const logger: Logger = (level, message) => messages.push({level, message});
 
@@ -337,14 +337,14 @@ describe("parser", () => {
                 {GOOD: toString, BAD_SINGLE: toString}
             );
 
-            const err = messages.find(
-                (m) => m.level === "error" && m.message.includes("unterminated single quote")
+            const warn = messages.find(
+                (m) => m.level === "warn" && m.message.includes("unterminated single quote")
             );
-            expect(err).toBeDefined();
-            expect(err!.message).toContain("consumed");
+            expect(warn).toBeDefined();
+            expect(warn!.message).toContain("consumed");
         });
 
-        it("errors on unterminated backtick quote with lines consumed", () => {
+        it("warns on unterminated backtick quote with lines consumed", () => {
             const messages: Array<{level: LogLevel; message: string}> = [];
             const logger: Logger = (level, message) => messages.push({level, message});
 
@@ -353,11 +353,11 @@ describe("parser", () => {
                 {GOOD: toString, BAD_BACKTICK: toString}
             );
 
-            const err = messages.find(
-                (m) => m.level === "error" && m.message.includes("unterminated backtick quote")
+            const warn = messages.find(
+                (m) => m.level === "warn" && m.message.includes("unterminated backtick quote")
             );
-            expect(err).toBeDefined();
-            expect(err!.message).toContain("consumed");
+            expect(warn).toBeDefined();
+            expect(warn!.message).toContain("consumed");
         });
 
         it("unterminated quote consumes all subsequent entries to EOF", () => {
@@ -385,10 +385,10 @@ describe("parser", () => {
                 expect(result.data.LAST).toBeUndefined();
             }
 
-            // error log should report lines consumed
-            const err = messages.find((m) => m.level === "error" && m.message.includes("unterminated"));
-            expect(err).toBeDefined();
-            expect(err!.message).toMatch(/consumed \d+ line/);
+            // warning log should report lines consumed
+            const warn = messages.find((m) => m.level === "warn" && m.message.includes("unterminated"));
+            expect(warn).toBeDefined();
+            expect(warn!.message).toMatch(/consumed \d+ line/);
         });
 
         it("warns on invalid key names", () => {
@@ -422,17 +422,17 @@ describe("parser", () => {
             expect(invalidWarnings.length).toBe(0);
         });
 
-        it("warning/error format follows src:L{line}: key: message convention", () => {
+        it("warning format follows src:L{line}: key: message convention", () => {
             const messages: Array<{level: LogLevel; message: string}> = [];
             const logger: Logger = (level, message) => messages.push({level, message});
 
             loadEnv(opts([".env.unterminated-double"], {logger}), {BAD_DOUBLE: toString});
 
-            const err = messages.find(
-                (m) => m.level === "error" && m.message.includes("unterminated double quote")
+            const warn = messages.find(
+                (m) => m.level === "warn" && m.message.includes("unterminated double quote")
             );
-            expect(err).toBeDefined();
-            expect(err!.message).toMatch(/^\.env\.unterminated-double:L\d+: BAD_DOUBLE:/);
+            expect(warn).toBeDefined();
+            expect(warn!.message).toMatch(/^\.env\.unterminated-double:L\d+: BAD_DOUBLE:/);
         });
     });
 });

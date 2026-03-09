@@ -11,6 +11,7 @@ import {
     toJSON,
     toStringArray,
     toIntArray,
+    toFloatArray,
     withDefault,
     withRequired,
     withOptional,
@@ -237,6 +238,13 @@ describe("type inference", () => {
 
     it("infers toIntArray as number[]", () => {
         const result = unwrap(loadEnv(opts([".env.complex"]), {NUMBERS: toIntArray()}));
+
+        type assertion = Expect<Equal<typeof result, {NUMBERS: number[]}>>;
+        expect(result.NUMBERS).toEqual([1, 2, 3, 4, 5]);
+    });
+
+    it("infers toFloatArray as number[]", () => {
+        const result = unwrap(loadEnv(opts([".env.complex"]), {NUMBERS: toFloatArray()}));
 
         type assertion = Expect<Equal<typeof result, {NUMBERS: number[]}>>;
         expect(result.NUMBERS).toEqual([1, 2, 3, 4, 5]);

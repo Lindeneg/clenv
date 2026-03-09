@@ -11,6 +11,7 @@ import {
     toJSON,
     toStringArray,
     toIntArray,
+    toFloatArray,
     withDefault,
     withRequired,
     withOptional,
@@ -32,15 +33,15 @@ const ctx: TransformContext = {rawEnv: {}};
 describe("transforms", () => {
     describe("toString", () => {
         it("returns value as-is", () => {
-            expect(toString("K", "hello")).toEqual({ok: true, data: "hello"});
+            expect(toString("K", "hello", ctx)).toEqual({ok: true, data: "hello"});
         });
 
         it("returns empty string for empty value", () => {
-            expect(toString("K", "")).toEqual({ok: true, data: ""});
+            expect(toString("K", "", ctx)).toEqual({ok: true, data: ""});
         });
 
         it("fails on undefined", () => {
-            const result = toString("K", undefined);
+            const result = toString("K", undefined, ctx);
             expect(result.ok).toBe(false);
             if (!result.ok) expect(result.ctx).toContain("no value provided");
         });
@@ -57,23 +58,23 @@ describe("transforms", () => {
             ["False", false],
             ["0", false],
         ] as const)("parses '%s' as %s", (input, expected) => {
-            expect(toBool("K", input)).toEqual({ok: true, data: expected});
+            expect(toBool("K", input, ctx)).toEqual({ok: true, data: expected});
         });
 
         it.each(["yes", "no", "on", "off", "2", ""])("rejects '%s'", (input) => {
-            const result = toBool("K", input);
+            const result = toBool("K", input, ctx);
             expect(result.ok).toBe(false);
         });
 
         it("includes key and value in error message", () => {
-            expect(toBool("DEBUG", "nope")).toEqual({
+            expect(toBool("DEBUG", "nope", ctx)).toEqual({
                 ok: false,
                 ctx: "DEBUG: expected boolean, got 'nope'",
             });
         });
 
         it("fails on undefined", () => {
-            const result = toBool("K", undefined);
+            const result = toBool("K", undefined, ctx);
             expect(result.ok).toBe(false);
             if (!result.ok) expect(result.ctx).toContain("no value provided");
         });
@@ -152,23 +153,23 @@ describe("transforms", () => {
 
     describe("toStringArray", () => {
         it("splits by comma by default", () => {
-            expect(toStringArray()("K", "a,b,c")).toEqual({ok: true, data: ["a", "b", "c"]});
+            expect(toStringArray()("K", "a,b,c", ctx)).toEqual({ok: true, data: ["a", "b", "c"]});
         });
 
         it("trims whitespace from elements", () => {
-            expect(toStringArray()("K", "a , b , c")).toEqual({ok: true, data: ["a", "b", "c"]});
+            expect(toStringArray()("K", "a , b , c", ctx)).toEqual({ok: true, data: ["a", "b", "c"]});
         });
 
         it("supports custom delimiter", () => {
-            expect(toStringArray("|")("K", "x|y|z")).toEqual({ok: true, data: ["x", "y", "z"]});
+            expect(toStringArray("|")("K", "x|y|z", ctx)).toEqual({ok: true, data: ["x", "y", "z"]});
         });
 
         it("returns single-element array for no delimiter match", () => {
-            expect(toStringArray()("K", "single")).toEqual({ok: true, data: ["single"]});
+            expect(toStringArray()("K", "single", ctx)).toEqual({ok: true, data: ["single"]});
         });
 
         it("fails on undefined", () => {
-            const result = toStringArray()("K", undefined);
+            const result = toStringArray()("K", undefined, ctx);
             expect(result.ok).toBe(false);
             if (!result.ok) expect(result.ctx).toContain("no value provided");
         });
@@ -199,6 +200,31 @@ describe("transforms", () => {
         });
     });
 
+    describe("toFloatArray", () => {
+        it("splits and parses floats", () => {
+            expect(toFloatArray()("K", "1.1,2.2,3.3", ctx)).toEqual({ok: true, data: [1.1, 2.2, 3.3]});
+        });
+
+        it("trims whitespace from elements", () => {
+            expect(toFloatArray()("K", "1.5 , 2.5 , 3.5", ctx)).toEqual({ok: true, data: [1.5, 2.5, 3.5]});
+        });
+
+        it("supports custom delimiter", () => {
+            expect(toFloatArray("|")("K", "3.14|2.71", ctx)).toEqual({ok: true, data: [3.14, 2.71]});
+        });
+
+        it("fails if any element is not a number", () => {
+            const result = toFloatArray()("NUMS", "1.1,abc,3.3", ctx);
+            expect(result.ok).toBe(false);
+        });
+
+        it("fails on undefined", () => {
+            const result = toFloatArray()("K", undefined, ctx);
+            expect(result.ok).toBe(false);
+            if (!result.ok) expect(result.ctx).toContain("no value provided");
+        });
+    });
+
     describe("toJSON", () => {
         it("parses valid JSON", () => {
             expect(toJSON<{id: number}>()("K", '{"id":1}', ctx)).toEqual({
@@ -210,7 +236,7 @@ describe("transforms", () => {
         it("fails on invalid JSON", () => {
             expect(toJSON()("CFG", "not json", ctx)).toEqual({
                 ok: false,
-                ctx: "CFG: failed to convert to JSON",
+                ctx: expect.stringContaining("CFG: failed to parse JSON:"),
             });
         });
 
