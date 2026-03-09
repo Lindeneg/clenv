@@ -155,16 +155,16 @@ export function loadEnv<const TOpts extends LoadEnvOpts, TConfig extends Config>
     return success(env as any);
 }
 
+const LOG_CONFIG: Record<LogLevel, {method: "error" | "warn" | "log" | "debug"; color: string; pad: string}> = {
+    error:   {method: "error", color: "\x1b[31m", pad: "  "},
+    warn:    {method: "warn",  color: "\x1b[33m", pad: "   "},
+    debug:   {method: "debug", color: "\x1b[36m", pad: "  "},
+    verbose: {method: "log",   color: "\x1b[2m",  pad: ""},
+};
+
 function defaultLogger(level: LogLevel, message: string) {
-    const method =
-        level === "error"
-            ? "error"
-            : level === "warn"
-              ? "warn"
-              : level === "verbose"
-                ? "log"
-                : "debug";
-    console[method](`[cl-env:${level}] ${message}`);
+    const {method, color, pad} = LOG_CONFIG[level];
+    console[method](`${color}[cl-env:${level}]${pad}\x1b[0m ${message}`);
 }
 
 function readFile(path: string, encoding: BufferEncoding): Result<string> {

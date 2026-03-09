@@ -15,5 +15,6 @@
 
     "strict": true,
     "skipLibCheck": true
-  }
+  },
+  "exclude": ["dev"]
 }

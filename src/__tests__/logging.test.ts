@@ -205,6 +205,125 @@ describe("logging", () => {
         expect(overwriteLog).toBeDefined();
     });
 
+    it("default logger pads tags to equal width", () => {
+        const spyLog = vi.spyOn(console, "log").mockImplementation(() => {});
+        const spyDebug = vi.spyOn(console, "debug").mockImplementation(() => {});
+        const spyWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        const spyError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+        loadEnv(
+            {files: [".env.basic"], transformKeys: false, basePath: fixtures, logger: true},
+            {HOST: toString}
+        );
+
+        // collect all formatted messages across all console methods
+        const allCalls = [
+            ...spyLog.mock.calls,
+            ...spyDebug.mock.calls,
+            ...spyWarn.mock.calls,
+            ...spyError.mock.calls,
+        ].map((args) => args[0] as string);
+
+        spyLog.mockRestore();
+        spyDebug.mockRestore();
+        spyWarn.mockRestore();
+        spyError.mockRestore();
+
+        expect(allCalls.length).toBeGreaterThan(0);
+
+        // strip ANSI codes, then check that all tags + padding have the same width
+        const stripped = allCalls.map((s) => s.replace(/\x1b\[[0-9;]*m/g, ""));
+        const tagWidths = stripped.map((s) => {
+            const match = s.match(/^\[cl-env:\w+\]\s*/);
+            return match ? match[0].length : -1;
+        });
+        // all tags should be present and padded to 17 chars ("[cl-env:verbose] ")
+        for (const w of tagWidths) {
+            expect(w).toBe(17);
+        }
+    });
+
+    it("default logger uses ANSI colors per level", () => {
+        const spyLog = vi.spyOn(console, "log").mockImplementation(() => {});
+        const spyDebug = vi.spyOn(console, "debug").mockImplementation(() => {});
+        const spyWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        const spyError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+        loadEnv(
+            {files: [".env.basic"], transformKeys: false, basePath: fixtures, logger: true},
+            {HOST: toString}
+        );
+
+        // verbose goes to console.log — should have dim (\x1b[2m)
+        if (spyLog.mock.calls.length > 0) {
+            expect(spyLog.mock.calls[0]![0]).toContain("\x1b[2m");
+        }
+        // warn goes to console.warn — should have yellow (\x1b[33m)
+        if (spyWarn.mock.calls.length > 0) {
+            expect(spyWarn.mock.calls[0]![0]).toContain("\x1b[33m");
+        }
+        // debug goes to console.debug — should have cyan (\x1b[36m)
+        if (spyDebug.mock.calls.length > 0) {
+            expect(spyDebug.mock.calls[0]![0]).toContain("\x1b[36m");
+        }
+
+        // all messages should end their color with reset
+        const allCalls = [
+            ...spyLog.mock.calls,
+            ...spyDebug.mock.calls,
+            ...spyWarn.mock.calls,
+            ...spyError.mock.calls,
+        ].map((args) => args[0] as string);
+
+        for (const msg of allCalls) {
+            expect(msg).toContain("\x1b[0m");
+        }
+
+        spyLog.mockRestore();
+        spyDebug.mockRestore();
+        spyWarn.mockRestore();
+        spyError.mockRestore();
+    });
+
+    it("default logger output matches expected format exactly", () => {
+        const spyLog = vi.spyOn(console, "log").mockImplementation(() => {});
+        const spyDebug = vi.spyOn(console, "debug").mockImplementation(() => {});
+        const spyWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        const spyError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+        loadEnv(
+            {files: [".env.basic"], transformKeys: false, basePath: fixtures, logger: true},
+            {HOST: toString}
+        );
+
+        const allCalls = [
+            ...spyLog.mock.calls,
+            ...spyDebug.mock.calls,
+            ...spyWarn.mock.calls,
+            ...spyError.mock.calls,
+        ].map((args) => args[0] as string);
+
+        spyLog.mockRestore();
+        spyDebug.mockRestore();
+        spyWarn.mockRestore();
+        spyError.mockRestore();
+
+        // strip ANSI to get readable output
+        const lines = allCalls.map((s) => s.replace(/\x1b\[[0-9;]*m/g, ""));
+
+        // check a verbose line (parsed .env)
+        const parsedLine = lines.find((l) => l.includes("parsed .env.basic"));
+        expect(parsedLine).toBe("[cl-env:verbose] parsed .env.basic: 4 entries");
+
+        // check a debug line (loaded summary)
+        const summaryLine = lines.find((l) => l.includes("loaded"));
+        expect(summaryLine).toBe("[cl-env:debug]   loaded 1 vars: 4 from .env.basic");
+
+        // check a warn line (unknown keys)
+        const warnLine = lines.find((l) => l.includes("not a known key"));
+        expect(warnLine).toMatch(/^\[cl-env:warn\]\s{4}/);
+    });
+
     it("no logging when logger is undefined/false", () => {
         const spy = vi.spyOn(console, "warn").mockImplementation(() => {});
         const spyDebug = vi.spyOn(console, "debug").mockImplementation(() => {});

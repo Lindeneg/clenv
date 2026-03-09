@@ -34,7 +34,7 @@ export function unwrap<T extends Result<any, any>>(
                 .map((e: EnvError | string) =>
                     typeof e === "string"
                         ? e
-                        : `${e.source ? `${e.source}:` : ""}${e.line ? `L${e.line}: ` : ""}${e.key}: ${e.message}`
+                        : `${e.source && e.source !== "none" ? `${e.source}:` : ""}${e.line ? `L${e.line}: ` : ""}${e.message}`
                 )
                 .join("\n");
             throw new Error(msg);
