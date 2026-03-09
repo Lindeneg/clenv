@@ -24,23 +24,22 @@ npm i @lindeneg/cl-env
 ## Quick start
 
 ```ts
-import { loadEnv, unwrap, toString, toInt, toBool, withOptional, withDefault, withRequired } from "@lindeneg/cl-env";
+import { loadEnv, toString, toInt, toBool, withOptional, withDefault, withRequired } from "@lindeneg/cl-env";
 
-const env = unwrap(
-    loadEnv(
-        { files: [".env"], transformKeys: true },
-        {
-            DATABASE_URL: withRequired(toString),
-            PORT: withDefault(toInt, 3000),
-            DEBUG: withOptional(toBool),
-        }
-    )
+const env = loadEnv(
+    {files: [".env"], transformKeys: true},
+    {
+        DATABASE_URL: withRequired(toString),
+        PORT: withDefault(toInt, 3000),
+        FLOAT: withOptional(toFloat),
+        DEBUG: toBool,
+    }
 );
 
-// env: { databaseUrl: string, port: number, debug: boolean | undefined }
+// result data typed as: { databaseUrl: string; port: number; float: number | undefined; debug: boolean }
 ```
 
-With `transformKeys: false`, keys are preserved as-is: `{ DATABASE_URL: string, PORT: number, DEBUG: boolean | undefined }`, enforced at the type-level and of course in the object itself.
+With `transformKeys: false`, keys are preserved as-is: `{ DATABASE_URL: string; PORT: number; FLOAT: number | undefined; DEBUG: boolean; }`, enforced at the type-level and of course in the object itself.
 
 ## Result type
 
@@ -66,7 +65,23 @@ if (!result.ok) {
 result.data.PORT; // number
 ```
 
-`unwrap(result)` extracts the data or throws if the result is a failure — use this when you want to fail fast.
+`unwrap(result)` extracts the data or throws if the result is a failure — use this when you want your program to crash if environment loading fails. It also types correctly of course.
+
+```ts
+// env is typed correctly with no result check needed: 
+// { databaseUrl: string; port: number; float: number | undefined; debug: boolean }
+const env = unwrap(
+    loadEnv(
+        { files: [".env"], transformKeys: true },
+        {
+            DATABASE_URL: withRequired(toString),
+            PORT: withDefault(toInt, 3000),
+            FLOAT: withOptional(toFloat),
+            DEBUG: toBool,
+        }
+    )
+);
+```
 
 All transforms also return `Result`. The `success(data)` and `failure(ctx)` constructors are exported for writing custom transforms.
 
