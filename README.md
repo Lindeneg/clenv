@@ -43,6 +43,16 @@ npm i @lindeneg/cl-env
 
 If your framework already manages `process.env` for you, validation-only libraries like [t3-env](https://env.t3.gg) or [envalid](https://github.com/af/envalid) are purpose-built for that model. `cl-env` is for when you want to control the loading yourself.
 
+| | Common approach | cl-env |
+|---|---|---|
+| Parsing | dotenv (separate package) | Built-in |
+| Typing | Via schema library (Zod, etc.) | Inferred from transforms |
+| Validation | Schema-based | Transform-based |
+| Expansion | dotenv-expand (separate package) | Built-in, graph-based |
+| Layering | dotenv-flow (separate package) | Built-in |
+| Errors | Varies | Accumulated with source tracking |
+| Dependencies | 2-4 packages | Zero |
+
 ## Quick start
 
 ```ts
