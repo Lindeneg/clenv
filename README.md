@@ -1,3 +1,5 @@
+###### unstable, under heavy development with breaking changes until 1.0.0 is released. 
+
 # cl-env
 
 Load `.env` files, validate values with composable transforms, and produce a **fully typed** configuration object, all with zero runtime dependencies.
