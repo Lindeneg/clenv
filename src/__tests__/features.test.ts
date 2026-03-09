@@ -313,6 +313,39 @@ describe("features", () => {
             delete process.env.PRESENT;
         });
 
+        it("fallback does not replace empty string value from file", () => {
+            process.env.EMPTY_KEY = "from-process";
+            const result = loadEnv(
+                {
+                    files: [".env.empty-value"],
+                    transformKeys: false,
+                    basePath: fixtures,
+                    includeProcessEnv: "fallback",
+                },
+                {EMPTY_KEY: toString}
+            );
+            // KEY= in file means the key IS present (empty string), fallback should not replace it
+            expect(result).toEqual({ok: true, data: {EMPTY_KEY: ""}});
+            delete process.env.EMPTY_KEY;
+        });
+
+        it("process.env values are not expanded", () => {
+            const key = "CLENV_EXPAND_TEST";
+            process.env[key] = "has-$REF-in-it";
+            const result = loadEnv(
+                {
+                    files: [".env.missing"],
+                    transformKeys: false,
+                    basePath: fixtures,
+                    includeProcessEnv: "fallback",
+                },
+                {[key]: toString}
+            );
+            // $REF should stay literal — process.env values are taken as-is
+            expect(result).toEqual({ok: true, data: {[key]: "has-$REF-in-it"}});
+            delete process.env[key];
+        });
+
         it("no merge when includeProcessEnv is false/undefined", () => {
             process.env[ENV_KEY] = "should-not-appear";
             const result = loadEnv(opts([".env.missing"]), {
