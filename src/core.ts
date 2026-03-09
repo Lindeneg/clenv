@@ -203,16 +203,86 @@ function deduplicate(allEntries: ParsedEntry[], log?: Logger) {
     return deduped;
 }
 
+const VAR_REF_RE = /\$\{([^}]+)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g;
+
+function extractRefs(value: string): string[] {
+    const refs: string[] = [];
+    let match;
+    VAR_REF_RE.lastIndex = 0;
+    while ((match = VAR_REF_RE.exec(value)) !== null) {
+        refs.push((match[1] ?? match[2])!);
+    }
+    return refs;
+}
+
 function expandEntries(deduped: Map<string, ParsedEntry>, log?: Logger) {
     const expanded = new SourceMap();
+
+    // build dependency graph (internal refs only, excluding self-refs)
+    const inDegree = new Map<string, number>();
+    const dependents = new Map<string, string[]>();
+
+    for (const key of deduped.keys()) {
+        inDegree.set(key, 0);
+        dependents.set(key, []);
+    }
+
     for (const [key, entry] of deduped) {
+        if (entry.quoted === "'") continue;
+        const refs = extractRefs(entry.value);
+        const seen = new Set<string>();
+        for (const ref of refs) {
+            if (ref === key || seen.has(ref) || !deduped.has(ref)) continue;
+            seen.add(ref);
+            inDegree.set(key, inDegree.get(key)! + 1);
+            dependents.get(ref)!.push(key);
+        }
+    }
+
+    // Kahn's algorithm — topological sort
+    const queue: string[] = [];
+    for (const [key, degree] of inDegree) {
+        if (degree === 0) queue.push(key);
+    }
+
+    const order: string[] = [];
+    while (queue.length > 0) {
+        const key = queue.shift()!;
+        order.push(key);
+        for (const dep of dependents.get(key)!) {
+            const newDegree = inDegree.get(dep)! - 1;
+            inDegree.set(dep, newDegree);
+            if (newDegree === 0) queue.push(dep);
+        }
+    }
+
+    // expand in dependency order
+    for (const key of order) {
+        const entry = deduped.get(key)!;
         if (entry.quoted === "'") {
             expanded.set(key, entry.value, entry.source);
         } else {
-            const expandedValue = expand(key, entry, expanded, process.env, log);
-            expanded.set(key, expandedValue, entry.source);
+            expanded.set(key, expand(key, entry, expanded, process.env, log), entry.source);
         }
     }
+
+    // handle cyclic entries — warn and expand best-effort
+    if (order.length < deduped.size) {
+        const orderSet = new Set(order);
+        for (const [key, entry] of deduped) {
+            if (orderSet.has(key)) continue;
+            log?.(
+                "warn",
+                `${entry.source}:L${entry.line}: ${key}: involved in cyclic reference, expansion may be incomplete`
+            );
+            if (entry.quoted === "'") {
+                expanded.set(key, entry.value, entry.source);
+            } else {
+                expanded.set(key, expand(key, entry, expanded, process.env, log), entry.source);
+            }
+        }
+    }
+
     return expanded;
 }
 
@@ -275,31 +345,28 @@ function expand(
     env: Record<string, string | undefined>,
     log?: Logger
 ): string {
-    return entry.value.replace(
-        /\$\{([^}]+)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g,
-        (original, braced, bare) => {
-            const name = braced ?? bare;
-            const fromResolved = resolved.get(name);
-            if (fromResolved !== undefined) {
-                log?.(
-                    "verbose",
-                    `${entry.source}:L${entry.line}: ${key}: expanded $${name} from ${resolved.getSource(name)}`
-                );
-                return fromResolved;
-            }
-            const fromEnv = env[name];
-            if (fromEnv !== undefined) {
-                log?.(
-                    "verbose",
-                    `${entry.source}:L${entry.line}: ${key}: expanded $${name} from process.env`
-                );
-                return fromEnv;
-            }
+    return entry.value.replace(VAR_REF_RE, (original, braced, bare) => {
+        const name = braced ?? bare;
+        const fromResolved = resolved.get(name);
+        if (fromResolved !== undefined) {
             log?.(
-                "warn",
-                `${entry.source}:L${entry.line}: ${key}: $${name} is not defined, left unexpanded`
+                "verbose",
+                `${entry.source}:L${entry.line}: ${key}: expanded $${name} from ${resolved.getSource(name)}`
             );
-            return original;
+            return fromResolved;
         }
-    );
+        const fromEnv = env[name];
+        if (fromEnv !== undefined) {
+            log?.(
+                "verbose",
+                `${entry.source}:L${entry.line}: ${key}: expanded $${name} from process.env`
+            );
+            return fromEnv;
+        }
+        log?.(
+            "warn",
+            `${entry.source}:L${entry.line}: ${key}: $${name} is not defined, left unexpanded`
+        );
+        return original;
+    });
 }

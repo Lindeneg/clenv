@@ -130,6 +130,20 @@ describe("logging", () => {
         expect(unresolved!.message).toContain("$CLENV_UNDEFINED_VAR");
     });
 
+    it("warns on cyclic references", () => {
+        delete process.env.A;
+        delete process.env.B;
+        const {messages, logger} = capture();
+        loadEnv(opts([".env.cyclic"], {logger}), {A: toString, B: toString});
+
+        const cycleWarnings = messages.filter(
+            (m) => m.level === "warn" && m.message.includes("cyclic reference")
+        );
+        expect(cycleWarnings.length).toBe(2);
+        expect(cycleWarnings[0]!.message).toContain("A");
+        expect(cycleWarnings[1]!.message).toContain("B");
+    });
+
     it("logs default values at debug level", () => {
         const {messages, logger} = capture();
         loadEnv(opts([".env.missing"], {logger}), {

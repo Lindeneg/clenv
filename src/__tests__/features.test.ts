@@ -157,8 +157,9 @@ describe("features", () => {
         });
 
         it("cyclic references resolve to unresolved tokens (no infinite loop)", () => {
-            // A=$B is processed first — B hasn't been expanded yet, so $B is unresolved
-            // B=$A is processed second — A is "$B" (literal), so B becomes "$B"
+            // both A and B are cyclic — expanded best-effort in file order
+            // A=$B: B not yet resolved, not in process.env → stays "$B"
+            // B=$A: A resolved to "$B" → B becomes "$B"
             delete process.env.A;
             delete process.env.B;
             const result = loadEnv(opts([".env.cyclic"]), {A: toString, B: toString});
@@ -166,6 +167,37 @@ describe("features", () => {
             if (result.ok) {
                 expect(result.data.A).toBe("$B");
                 expect(result.data.B).toBe("$B");
+            }
+        });
+
+        it("resolves forward references (topo sort)", () => {
+            const result = loadEnv(opts([".env.forward-ref"]), {
+                URL: toString,
+                HOST: toString,
+                PORT: toString,
+                ANOTHER_HOST: toString,
+                CHAINED: toString,
+            });
+            expect(result).toEqual({
+                ok: true,
+                data: {
+                    ANOTHER_HOST: "localhost",
+                    HOST: "localhost",
+                    PORT: "3000",
+                    URL: "http://localhost:3000",
+                    CHAINED: "http://localhost:3000/api",
+                },
+            });
+        });
+
+        it("resolves forward references across dependency chains", () => {
+            const result = loadEnv(opts([".env.forward-ref"]), {
+                URL: toString,
+                ANOTHER_HOST: toString,
+            });
+            if (result.ok) {
+                // URL → HOST → ANOTHER_HOST, all resolved despite reverse file order
+                expect(result.data.URL).toContain("localhost");
             }
         });
     });
