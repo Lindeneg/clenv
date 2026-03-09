@@ -193,7 +193,7 @@ Every transform receives a `TransformContext` as its third argument:
 
 | Property | Type | Description |
 |---|---|---|
-| `rawEnv` | `Record<string, string>` | All resolved string values (post-expansion, pre-transform). |
+| `expandedEnv` | `Record<string, string>` | All resolved string values (post-expansion, pre-transform). |
 | `source` | `string \| undefined` | Where the key came from: file name (e.g. `".env.local"`), `"process.env"`, or `"none"`. |
 | `line` | `number \| undefined` | Line number in the source file. `undefined` when there is no file. |
 | `schemaParser` | `SchemaParser \| undefined` | The schema parser from options, if set. |
