@@ -10,7 +10,7 @@ export type SchemaParser<TSchema = any, TReturn = any> = (
 ) => Result<TReturn, string>;
 
 export type TransformContext = {
-    rawEnv: Record<string, string>;
+    expandedEnv: Record<string, string>;
     schemaParser?: SchemaParser;
     radix?: (key: string) => number | undefined;
     log?: Logger;

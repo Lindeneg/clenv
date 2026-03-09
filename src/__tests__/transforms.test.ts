@@ -25,7 +25,7 @@ const opts = (files: string[], extra: Partial<Parameters<typeof loadEnv>[0]> = {
     ({files, transformKeys: false, basePath: fixtures, ...extra}) as const;
 
 // minimal ctx for direct transform unit tests
-const ctx: TransformContext = {rawEnv: {}};
+const ctx: TransformContext = {expandedEnv: {}};
 
 // ─── transforms (unit) ──────────────────────────────────────────────────────
 
@@ -103,13 +103,13 @@ describe("transforms", () => {
         });
 
         it("respects radix from context", () => {
-            const hexCtx: TransformContext = {rawEnv: {}, radix: () => 16};
+            const hexCtx: TransformContext = {expandedEnv: {}, radix: () => 16};
             expect(toInt("K", "ff", hexCtx)).toEqual({ok: true, data: 255});
         });
 
         it("radix can be per-key", () => {
             const mixedCtx: TransformContext = {
-                rawEnv: {},
+                expandedEnv: {},
                 radix: (key: string) => (key === "HEX" ? 16 : undefined),
             };
             expect(toInt("HEX", "a", mixedCtx)).toEqual({ok: true, data: 10});
@@ -295,7 +295,7 @@ describe("transforms", () => {
                 if (s === schema) return success(obj);
                 return failure("wrong schema");
             };
-            const ctxWithParser: TransformContext = {rawEnv: {}, schemaParser: parser};
+            const ctxWithParser: TransformContext = {expandedEnv: {}, schemaParser: parser};
             expect(toJSON<{a: number}>(schema)("K", '{"a":1}', ctxWithParser)).toEqual({
                 ok: true,
                 data: {a: 1},
@@ -312,7 +312,7 @@ describe("transforms", () => {
         it("does not call parser when no schema provided", () => {
             let called = false;
             const ctxWithParser: TransformContext = {
-                rawEnv: {},
+                expandedEnv: {},
                 schemaParser: () => {
                     called = true;
                     return success({});
