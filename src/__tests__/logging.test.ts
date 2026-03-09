@@ -1,14 +1,6 @@
 import {join} from "node:path";
-
 import {describe, it, expect, vi} from "vitest";
-import {
-    loadEnv,
-    toString,
-    toInt,
-    withDefault,
-    type Logger,
-    type LogLevel,
-} from "../index.js";
+import {loadEnv, toString, toInt, withDefault, type Logger, type LogLevel} from "../index.js";
 
 const fixtures = join(import.meta.dirname, "fixtures");
 const opts = (files: string[], extra: Partial<Parameters<typeof loadEnv>[0]> = {}) =>
@@ -152,9 +144,7 @@ describe("logging", () => {
         });
 
         const defaultLog = messages.find(
-            (m) =>
-                m.level === "debug" &&
-                m.message.includes("not found in any file, using default")
+            (m) => m.level === "debug" && m.message.includes("not found in any file, using default")
         );
         expect(defaultLog).toBeDefined();
     });
@@ -194,7 +184,10 @@ describe("logging", () => {
         delete process.env.HOST;
 
         const overwriteLog = messages.find(
-            (m) => m.level === "verbose" && m.message.includes("process.env") && m.message.includes("overrides")
+            (m) =>
+                m.level === "verbose" &&
+                m.message.includes("process.env") &&
+                m.message.includes("overrides")
         );
         expect(overwriteLog).toBeDefined();
     });

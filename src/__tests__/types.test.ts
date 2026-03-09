@@ -1,5 +1,4 @@
 import {join} from "node:path";
-
 import {describe, it, expect} from "vitest";
 import {Expect, Equal} from "type-testing";
 import {
@@ -252,9 +251,13 @@ describe("type inference", () => {
     });
 
     it("infers toEnum as union of provided values", () => {
-        const result = unwrap(loadEnv(opts([".env.custom"]), {LOG_LEVEL: toEnum("debug", "info", "warn", "error")}));
+        const result = unwrap(
+            loadEnv(opts([".env.custom"]), {LOG_LEVEL: toEnum("debug", "info", "warn", "error")})
+        );
 
-        type assertion = Expect<Equal<typeof result, {LOG_LEVEL: "debug" | "info" | "warn" | "error"}>>;
+        type assertion = Expect<
+            Equal<typeof result, {LOG_LEVEL: "debug" | "info" | "warn" | "error"}>
+        >;
         expect(result.LOG_LEVEL).toBe("debug");
     });
 

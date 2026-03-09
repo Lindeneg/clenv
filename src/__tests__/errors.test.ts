@@ -1,5 +1,4 @@
 import {join} from "node:path";
-
 import {describe, it, expect} from "vitest";
 import {
     loadEnv,
@@ -166,6 +165,62 @@ describe("error handling", () => {
     });
 });
 
+// ─── no sources configured ───────────────────────────────────────────────────
+
+describe("no sources configured", () => {
+    it("returns failure when files is empty and no other sources", () => {
+        const result = loadEnv({files: [], transformKeys: false}, {FOO: toString});
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+            expect(result.ctx[0]!.message).toContain("no sources configured");
+        }
+    });
+
+    it("succeeds when files is empty but includeProcessEnv is set", () => {
+        const key = "CLENV_EMPTY_FILES_TEST";
+        process.env[key] = "hello";
+        const result = loadEnv(
+            {files: [], transformKeys: false, includeProcessEnv: "fallback"},
+            {[key]: toString}
+        );
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+            expect((result.data as any)[key]).toBe("hello");
+        }
+        delete process.env[key];
+    });
+
+    it("succeeds when files is empty but optionalFiles has entries", () => {
+        const result = loadEnv(
+            {files: [], optionalFiles: [".env.basic"], transformKeys: false, basePath: fixtures},
+            {HOST: toString}
+        );
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+            expect((result.data as any).HOST).toBe("localhost");
+        }
+    });
+
+    it("succeeds when files is empty, optional file missing, but process.env is set", () => {
+        const key = "CLENV_DOCKER_TEST";
+        process.env[key] = "from-k8s";
+        const result = loadEnv(
+            {
+                files: [],
+                optionalFiles: ["nope.env"],
+                transformKeys: false,
+                includeProcessEnv: "fallback",
+            },
+            {[key]: toString}
+        );
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+            expect((result.data as any)[key]).toBe("from-k8s");
+        }
+        delete process.env[key];
+    });
+});
+
 // ─── unwrap error messages ──────────────────────────────────────────────────
 
 describe("unwrap error messages", () => {
@@ -176,9 +231,9 @@ describe("unwrap error messages", () => {
     });
 
     it("formats error without source for missing keys", () => {
-        expect(() =>
-            unwrap(loadEnv(opts([".env.basic"]), {NOPE: withRequired(toString)}))
-        ).toThrow("NOPE: is required but is missing");
+        expect(() => unwrap(loadEnv(opts([".env.basic"]), {NOPE: withRequired(toString)}))).toThrow(
+            "NOPE: is required but is missing"
+        );
     });
 
     it("does not prefix 'none:' for missing key errors", () => {
@@ -211,17 +266,15 @@ describe("unwrap error messages", () => {
         } catch (e: any) {
             const lines = e.message.trimStart().split("\n");
             expect(lines).toHaveLength(2);
-            expect(lines[0]).toBe(
-                ".env.basic:L1: HOST: failed to convert 'localhost' to a number"
-            );
+            expect(lines[0]).toBe(".env.basic:L1: HOST: failed to convert 'localhost' to a number");
             expect(lines[1]).toBe("MISSING: is required but is missing");
         }
     });
 
     it("formats bare transform 'no value provided' without source prefix", () => {
-        expect(() =>
-            unwrap(loadEnv(opts([".env.basic"]), {NOPE: toBool}))
-        ).toThrow("NOPE: no value provided (use withDefault or withRequired)");
+        expect(() => unwrap(loadEnv(opts([".env.basic"]), {NOPE: toBool}))).toThrow(
+            "NOPE: no value provided (use withDefault or withRequired)"
+        );
     });
 
     it("formats error from nonexistent file", () => {
@@ -252,9 +305,7 @@ describe("unwrap error messages", () => {
             const lines = e.message.trimStart().split("\n");
             expect(lines).toHaveLength(3);
             // HOST fails transform — has source and line
-            expect(lines[0]).toBe(
-                ".env.basic:L1: HOST: failed to convert 'localhost' to a number"
-            );
+            expect(lines[0]).toBe(".env.basic:L1: HOST: failed to convert 'localhost' to a number");
             // MISSING_REQ — no source
             expect(lines[1]).toBe("MISSING_REQ: is required but is missing");
             // MISSING_BARE — no source

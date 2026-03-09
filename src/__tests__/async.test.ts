@@ -1,5 +1,4 @@
 import {join} from "node:path";
-
 import {describe, it, expect, afterAll} from "vitest";
 import {Expect, Equal} from "type-testing";
 import {
@@ -14,10 +13,7 @@ import {
     withDefault,
     withRequired,
     withOptional,
-    success,
-    failure,
     type TransformContext,
-    type Result,
 } from "../index.js";
 
 const fixtures = join(import.meta.dirname, "fixtures");
@@ -91,7 +87,9 @@ describe("loadEnvAsync", () => {
                     source: ".env.basic",
                     line: 1,
                 });
-                expect(result.ctx[0]!.message).toContain("failed to convert 'localhost' to a number");
+                expect(result.ctx[0]!.message).toContain(
+                    "failed to convert 'localhost' to a number"
+                );
             }
         });
 
@@ -232,10 +230,7 @@ describe("loadEnvAsync", () => {
             );
 
             type assertion = Expect<
-                Equal<
-                    typeof result,
-                    {HOST: string; PORT: number; DEBUG: boolean}
-                >
+                Equal<typeof result, {HOST: string; PORT: number; DEBUG: boolean}>
             >;
 
             expect(result.HOST).toBe("localhost");
@@ -252,10 +247,7 @@ describe("loadEnvAsync", () => {
             );
 
             type assertion = Expect<
-                Equal<
-                    typeof result,
-                    {host: string; port: number; appName: string}
-                >
+                Equal<typeof result, {host: string; port: number; appName: string}>
             >;
 
             expect(result.host).toBe("localhost");
@@ -310,9 +302,7 @@ describe("loadEnvAsync", () => {
                 })
             );
 
-            type assertion = Expect<
-                Equal<typeof result, {TAGS: string[]; NUMBERS: number[]}>
-            >;
+            type assertion = Expect<Equal<typeof result, {TAGS: string[]; NUMBERS: number[]}>>;
 
             expect(result.TAGS).toEqual(["foo", "bar", "baz"]);
             expect(result.NUMBERS).toEqual([1, 2, 3, 4, 5]);

@@ -1,9 +1,7 @@
 import {join} from "node:path";
-
 import {describe, it, expect} from "vitest";
 import {
     loadEnv,
-    unwrap,
     toString,
     toInt,
     toFloat,
@@ -158,11 +156,17 @@ describe("transforms", () => {
         });
 
         it("trims whitespace from elements", () => {
-            expect(toStringArray()("K", "a , b , c", ctx)).toEqual({ok: true, data: ["a", "b", "c"]});
+            expect(toStringArray()("K", "a , b , c", ctx)).toEqual({
+                ok: true,
+                data: ["a", "b", "c"],
+            });
         });
 
         it("supports custom delimiter", () => {
-            expect(toStringArray("|")("K", "x|y|z", ctx)).toEqual({ok: true, data: ["x", "y", "z"]});
+            expect(toStringArray("|")("K", "x|y|z", ctx)).toEqual({
+                ok: true,
+                data: ["x", "y", "z"],
+            });
         });
 
         it("returns single-element array for no delimiter match", () => {
@@ -203,15 +207,24 @@ describe("transforms", () => {
 
     describe("toFloatArray", () => {
         it("splits and parses floats", () => {
-            expect(toFloatArray()("K", "1.1,2.2,3.3", ctx)).toEqual({ok: true, data: [1.1, 2.2, 3.3]});
+            expect(toFloatArray()("K", "1.1,2.2,3.3", ctx)).toEqual({
+                ok: true,
+                data: [1.1, 2.2, 3.3],
+            });
         });
 
         it("trims whitespace from elements", () => {
-            expect(toFloatArray()("K", "1.5 , 2.5 , 3.5", ctx)).toEqual({ok: true, data: [1.5, 2.5, 3.5]});
+            expect(toFloatArray()("K", "1.5 , 2.5 , 3.5", ctx)).toEqual({
+                ok: true,
+                data: [1.5, 2.5, 3.5],
+            });
         });
 
         it("supports custom delimiter", () => {
-            expect(toFloatArray("|")("K", "3.14|2.71", ctx)).toEqual({ok: true, data: [3.14, 2.71]});
+            expect(toFloatArray("|")("K", "3.14|2.71", ctx)).toEqual({
+                ok: true,
+                data: [3.14, 2.71],
+            });
         });
 
         it("fails if any element is not a number", () => {
