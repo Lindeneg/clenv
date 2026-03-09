@@ -81,7 +81,12 @@ export function loadEnv<const TOpts extends LoadEnvOpts, TConfig extends Config>
         try {
             const transformResult = transform(key, value, ctx);
             if (!transformResult.ok) {
-                errors.push({key, ...(entry && {line: entry.line}), source, message: transformResult.ctx});
+                errors.push({
+                    key,
+                    ...(entry && {line: entry.line}),
+                    source,
+                    message: transformResult.ctx,
+                });
                 continue;
             }
             setVal(key, transformResult.data);
@@ -779,23 +784,3 @@ function expand(
         }
     );
 }
-
-//class Foo {}
-//
-//const config = {files: [".env"], transformKeys: true} as const;
-//const k = unwrap(
-//    loadEnv(
-//        config,
-//        {
-//            DATABASE_URL: withRequired(toString),
-//            PORT: withDefault(toInt, 3000),
-//            RANGE_VALUES: toIntArray(),
-//            GOOGLE_ID: toString,
-//            GOOGLE_MID: toString,
-//            PROCESS_TEST: toJSON<Foo>(),
-//            CUSTOM_STUFF_THING: withRequired((k, v) => {
-//                return success(new Foo());
-//            }),
-//        }
-//    )
-//);
