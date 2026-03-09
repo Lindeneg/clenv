@@ -4,11 +4,12 @@ Type-safe dotenv replacement with composable validation and zero runtime depende
 
 Load `.env` files, validate values with composable transforms, and produce a **fully typed** configuration object.
 
-- **Composable validation** — combine `withRequired`, `withDefault`, built-in transforms, or write your own.
 - **Full type inference** — transforms, defaults, key casing all reflected at the type level.
+- **Proper dotenv parser** — multiline values, escape sequences, variable expansion, inline comments, layered files.
+- **Composable validation** — combine `withRequired`, `withDefault`, built-in transforms, or write your own.
 - **Structured errors** — errors accumulate; nothing fails silently.
 - **No `process.env` mutation** — returns a plain object.
-- **Zero dependencies** — single-file implementation with a proper dotenv-compatible parser.
+- **Zero dependencies** — single-file implementation.
 
 ## Install
 
