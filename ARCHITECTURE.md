@@ -91,8 +91,8 @@ References to variables not present in any file fall back to `process.env`. This
 Most env validation libraries (t3-env, envalid) use schema libraries like Zod for validation. cl-env uses transform functions instead:
 
 ```ts
-DATABASE_URL: withRequired(toString),
-PORT: withDefault(toInt, 3000),
+DATABASE_URL: withRequired(toString()),
+PORT: withDefault(toInt(), 3000),
 LOG_LEVEL: toEnum("debug", "info", "warn", "error"),
 ```
 
@@ -100,9 +100,9 @@ LOG_LEVEL: toEnum("debug", "info", "warn", "error"),
 
 1. **Zero dependencies.** Schema libraries are external dependencies. Transforms are plain functions built into the library.
 
-2. **Direct type inference.** A transform's return type *is* the output type. `toInt` returns `Result<number>`, so TypeScript knows the config value is `number`. No generic schema-to-type extraction needed.
+2. **Direct type inference.** A transform's return type *is* the output type. `toInt()` returns `Result<number>`, so TypeScript knows the config value is `number`. No generic schema-to-type extraction needed.
 
-3. **Composability without complexity.** `withDefault(toInt, 3000)` is just function wrapping. The wrapper checks for `undefined`, the inner transform handles parsing. No special API for defaults/optionals/required — these are orthogonal wrappers that work with any transform.
+3. **Composability without complexity.** `withDefault(toInt(), 3000)` is just function wrapping. The wrapper checks for `undefined`, the inner transform handles parsing. No special API for defaults/optionals/required — these are orthogonal wrappers that work with any transform.
 
 4. **Custom transforms are trivial.** Return `success(value)` or `failure(message)`. No framework to learn, no base class to extend.
 
@@ -141,7 +141,7 @@ type InferValueFromTransformFn<TTransform extends TransformFn> =
     ReturnType<TTransform> extends Result<infer TData> ? TData : never;
 ```
 
-This is what makes `withDefault(toInt, 3000)` produce `number` and `withOptional(toString)` produce `string | undefined` in the result type.
+This is what makes `withDefault(toInt(), 3000)` produce `number` and `withOptional(toString())` produce `string | undefined` in the result type.
 
 **`LoadEnvOpts` is not exported**. This is intentional. If users stored options in a variable, TypeScript would widen `transformKeys: true` to `boolean` (unless they added `as const` or `satisfies`). By forcing inline options, the `const` type parameter preserves the literal, and key casing inference works automatically.
 

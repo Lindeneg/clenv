@@ -59,9 +59,8 @@ If your framework already manages `process.env` for you, validation-only librari
 ## Quick start
 
 ```ts
-import { loadEnv, unwrap, toString, toInt, toFloat, toBool, toEnum,
-         refine, inRange,
-         withOptional, withDefault, withRequired } from "@lindeneg/cl-env";
+import {loadEnv, unwrap, toString, toInt, toFloat, toBool, toEnum, refine, inRange,
+        withOptional, withDefault, withRequired } from "@lindeneg/cl-env";
 
 const env = unwrap(
     loadEnv(
@@ -169,9 +168,9 @@ All built-in transforms are factory functions. Call them (e.g. `toString()`, `to
 | `toBool(opts?)` | `boolean` | `true/TRUE/1` → `true`, `false/FALSE/0` → `false` (case-insensitive). Options: `{ trueValues?: string[], falseValues?: string[] }` for custom mappings. |
 | `toEnum(...values)` | union | Succeeds if value matches exactly (case-sensitive). Type is inferred as union of provided strings. |
 | `toJSON<T>(schema?)` | `T` | `JSON.parse`, optionally validated via `schemaParser`. |
-| `toStringArray(delim?)` | `string[]` | Split by delimiter (default `,`), trim each element. |
-| `toIntArray(opts?)` | `number[]` | Split and parse each as integer. Options: `{ delimiter?, radix?, strict? }`. |
-| `toFloatArray(opts?)` | `number[]` | Split and parse each as float. Options: `{ delimiter?, strict? }`. |
+| `toStringArray(delim?)` | `string[]` | Split by delimiter (default `,`), trim each element, filter empty strings. An empty value (`KEY=`) produces `[]`. |
+| `toIntArray(opts?)` | `number[]` | Split and parse each as integer. Options: `{ delimiter?, radix?, strict? }`. Empty elements are filtered. |
+| `toFloatArray(opts?)` | `number[]` | Split and parse each as float. Options: `{ delimiter?, strict? }`. Empty elements are filtered. |
 
 All built-in transforms fail on `undefined` with a message suggesting `withDefault` or `withRequired`.
 
