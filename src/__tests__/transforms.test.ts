@@ -588,7 +588,7 @@ describe("refine", () => {
             const transform = refine(toInt(), inRange(0, 100));
             const result = transform("K", "200", ctx);
             expect(result.ok).toBe(false);
-            if (!result.ok) expect(result.ctx).toContain("bigger than constraint");
+            if (!result.ok) expect(result.ctx).toContain("must be between 0 and 100, got 200");
         });
 
         it("fails when base transform fails", () => {
@@ -633,14 +633,14 @@ describe("refine", () => {
             const transform = refine(toInt(), inRange(1, 10));
             const result = transform("K", "0", ctx);
             expect(result.ok).toBe(false);
-            if (!result.ok) expect(result.ctx).toContain("smaller than constraint '1'");
+            if (!result.ok) expect(result.ctx).toContain("must be between 1 and 10, got 0");
         });
 
         it("fails above maximum", () => {
             const transform = refine(toInt(), inRange(1, 10));
             const result = transform("K", "11", ctx);
             expect(result.ok).toBe(false);
-            if (!result.ok) expect(result.ctx).toContain("bigger than constraint '10'");
+            if (!result.ok) expect(result.ctx).toContain("must be between 1 and 10, got 11");
         });
 
         it("works with floats", () => {
@@ -681,7 +681,7 @@ describe("refine", () => {
             const transform = refine(toString(), matches(/^\d{3}-\d{4}$/));
             const result = transform("K", "not-a-phone", ctx);
             expect(result.ok).toBe(false);
-            if (!result.ok) expect(result.ctx).toContain("failed to match");
+            if (!result.ok) expect(result.ctx).toContain("does not match");
         });
     });
 
@@ -695,7 +695,7 @@ describe("refine", () => {
             const transform = refine(toString(), minLength(3));
             const result = transform("K", "ab", ctx);
             expect(result.ok).toBe(false);
-            if (!result.ok) expect(result.ctx).toContain("minimum '3' length");
+            if (!result.ok) expect(result.ctx).toContain("length 2 is less than minimum 3");
         });
 
         it("works with arrays", () => {
@@ -715,7 +715,7 @@ describe("refine", () => {
             const transform = refine(toString(), maxLength(3));
             const result = transform("K", "abcd", ctx);
             expect(result.ok).toBe(false);
-            if (!result.ok) expect(result.ctx).toContain("maximum '3' length");
+            if (!result.ok) expect(result.ctx).toContain("length 4 exceeds maximum 3");
         });
 
         it("works with arrays", () => {

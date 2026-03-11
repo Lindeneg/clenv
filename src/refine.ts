@@ -20,11 +20,8 @@ export function refine<T>(
 
 export function inRange(min: number, max: number): RefineCheck<number> {
     return function (key, val, _ctx) {
-        if (val < min) {
-            return failure(`${key}: '${val}' is smaller than constraint '${min}'`);
-        }
-        if (val > max) {
-            return failure(`${key}: '${val}' is bigger than constraint '${max}'`);
+        if (val < min || val > max) {
+            return failure(`${key}: must be between ${min} and ${max}, got ${val}`);
         }
         return success(val);
     };
@@ -37,14 +34,14 @@ export function nonEmpty<T extends string | any[]>(): RefineCheck<T> {
 export function matches(regex: RegExp): RefineCheck<string> {
     return function (key, val, _ctx) {
         if (regex.test(val)) return success(val);
-        return failure(`${key}: '${val}' failed to match ${regex}`);
+        return failure(`${key}: '${val}' does not match ${regex}`);
     };
 }
 
 export function minLength<T extends string | any[]>(n: number): RefineCheck<T> {
     return function (key, val, _ctx) {
         if (val.length < n) {
-            return failure(`${key}: '${val.length}' expected to be minimum '${n}' length`);
+            return failure(`${key}: length ${val.length} is less than minimum ${n}`);
         }
         return success(val);
     };
@@ -53,7 +50,7 @@ export function minLength<T extends string | any[]>(n: number): RefineCheck<T> {
 export function maxLength<T extends string | any[]>(n: number): RefineCheck<T> {
     return function (key, val, _ctx) {
         if (val.length > n) {
-            return failure(`${key}: '${val.length}' expected to be maximum '${n}' length`);
+            return failure(`${key}: length ${val.length} exceeds maximum ${n}`);
         }
         return success(val);
     };
