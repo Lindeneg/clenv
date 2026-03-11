@@ -41,7 +41,9 @@ npm i @lindeneg/cl-env
 
 `cl-env` owns the full env loading pipeline: parsing, variable expansion, layered files, validation, and typing, in a single zero-dependency package that never mutates `process.env`.
 
-If your framework already manages `process.env` for you, validation-only libraries like [t3-env](https://env.t3.gg) or [envalid](https://github.com/af/envalid) are purpose-built for that model. `cl-env` is for when you want to control the loading yourself.
+If your framework already manages `process.env` for you, validation-only libraries like [t3-env](https://env.t3.gg) or [envalid](https://github.com/af/envalid) are purpose-built for that model and will serve you well.
+
+`cl-env` is for when you want to control the loading yourself.
 
 | | Common approach | cl-env |
 |---|---|---|
