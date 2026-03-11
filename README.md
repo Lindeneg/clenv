@@ -60,6 +60,7 @@ If your framework already manages `process.env` for you, validation-only librari
 
 ```ts
 import { loadEnv, unwrap, toString, toInt, toFloat, toBool, toEnum,
+         refine, inRange,
          withOptional, withDefault, withRequired } from "@lindeneg/cl-env";
 
 const env = unwrap(
@@ -67,7 +68,7 @@ const env = unwrap(
         { files: [".env"], transformKeys: true },
         {
             DATABASE_URL: withRequired(toString()),
-            PORT: withDefault(toInt(), 3000),
+            PORT: withDefault(refine(toInt(), inRange(1, 65535)), 3000),
             FLOAT: withOptional(toFloat()),
             DEBUG: toBool(),
             LOG_LEVEL: toEnum("debug", "info", "warn", "error"),
@@ -179,15 +180,22 @@ All built-in transforms fail on `undefined` with a message suggesting `withDefau
 Chain validation checks after a transform using `refine`:
 
 ```ts
-import { refine, inRange, nonEmpty, matches, minLength, maxLength } from "@lindeneg/cl-env";
+import { loadEnv, unwrap, toString, toInt, toStringArray,
+         refine, inRange, nonEmpty, matches, minLength, maxLength,
+         withRequired, withOptional } from "@lindeneg/cl-env";
 
-const config = {
-    PORT: withRequired(refine(toInt(), inRange(1, 65535))),
-    HOST: withRequired(refine(toString(), nonEmpty())),
-    API_KEY: withOptional(refine(toString(), minLength(10), maxLength(128))),
-    TAGS: refine(toStringArray(), maxLength(10)),
-    EMAIL: refine(toString(), matches(/^.+@.+\..+$/)),
-};
+const env = unwrap(
+    loadEnv(
+        { files: [".env"], transformKeys: false },
+        {
+            PORT: withRequired(refine(toInt(), inRange(1, 65535))),
+            HOST: withRequired(refine(toString(), nonEmpty())),
+            API_KEY: withOptional(refine(toString(), minLength(10), maxLength(128))),
+            TAGS: refine(toStringArray(), maxLength(10)),
+            EMAIL: refine(toString(), matches(/^.+@.+\..+$/)),
+        }
+    )
+);
 ```
 
 | Helper | Applies to | Description |
@@ -202,12 +210,18 @@ const config = {
 Checks are `RefineCheck<T>` functions: `(key, value, ctx) => Result<T>`. Write custom checks for project-specific validation:
 
 ```ts
-import { type RefineCheck, success, failure } from "@lindeneg/cl-env";
+import { loadEnv, unwrap, toInt, refine, withRequired,
+         type RefineCheck, success, failure } from "@lindeneg/cl-env";
 
 const isEven: RefineCheck<number> = (key, val) =>
     val % 2 === 0 ? success(val) : failure(`${key}: expected even number, got ${val}`);
 
-const config = { COUNT: refine(toInt(), isEven) };
+const env = unwrap(
+    loadEnv(
+        { files: [".env"], transformKeys: false },
+        { COUNT: withRequired(refine(toInt(), isEven)) }
+    )
+);
 ```
 
 ### Custom transforms
