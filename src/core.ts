@@ -64,7 +64,7 @@ export function parseFileContents(
         log?.("verbose", `parsed ${file}: ${entries.length} entries`);
         if (log) {
             for (const w of warnings) {
-                log("warn", `${file}:${w.message}`);
+                log("warn", `${file}:L${w.line}: ${w.message}`);
             }
         }
     }

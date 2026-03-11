@@ -19,16 +19,16 @@ export type ToBoolOpts = {
 
 const defaultTrueValues = ["true", "1"];
 const defaultFalseValues = ["false", "0"];
-export function toBool(
-    opts: ToBoolOpts = {trueValues: defaultTrueValues, falseValues: defaultFalseValues}
-) {
+export function toBool(opts?: Partial<ToBoolOpts>) {
+    const trueVals = opts?.trueValues ?? defaultTrueValues;
+    const falseVals = opts?.falseValues ?? defaultFalseValues;
     return function (key: string, v: string | undefined, _ctx: TransformContext): Result<boolean> {
         if (v === undefined) {
             return failure(`${key}: no value provided (use withDefault or withRequired)`);
         }
         const lower = v.toLowerCase();
-        if (opts.trueValues.includes(lower)) return success(true);
-        if (opts.falseValues.includes(lower)) return success(false);
+        if (trueVals.includes(lower)) return success(true);
+        if (falseVals.includes(lower)) return success(false);
         return failure(`${key}: expected boolean, got '${v}'`);
     };
 }
@@ -60,7 +60,12 @@ export function toStringArray(delimiter = ",") {
         if (v === undefined) {
             return failure(`${key}: no value provided (use withDefault or withRequired)`);
         }
-        return success(v.split(delimiter).map((s) => s.trim()));
+        return success(
+            v
+                .split(delimiter)
+                .map((s) => s.trim())
+                .filter((s) => s !== "")
+        );
     };
 }
 
@@ -179,7 +184,10 @@ function toNumberArray(
     if (v === undefined) {
         return failure(`${key}: no value provided (use withDefault or withRequired)`);
     }
-    const parts = v.split(opts.delimiter === undefined ? "," : opts.delimiter).map((s) => s.trim());
+    const parts = v
+        .split(opts.delimiter === undefined ? "," : opts.delimiter)
+        .map((s) => s.trim())
+        .filter((s) => s !== "");
     const out: number[] = [];
 
     const boundToNumber = toNumber.bind(null, parser, opts);

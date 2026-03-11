@@ -52,7 +52,7 @@ export function parseDotenv(
             const consumed = line - entryLine;
             warnings.push({
                 line: entryLine,
-                message: `L${entryLine}: ${key}: unterminated ${quote === "`" ? "backtick" : "single"} quote, consumed ${consumed} line(s) to EOF`,
+                message: `${key}: unterminated ${quote === "`" ? "backtick" : "single"} quote, consumed ${consumed} line(s) to EOF`,
             });
         }
         return value;
@@ -96,7 +96,7 @@ export function parseDotenv(
         if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
             warnings.push({
                 line: entryLine,
-                message: `L${entryLine}: ${key}: invalid key name (expected [A-Za-z_][A-Za-z0-9_]*)`,
+                message: `${key}: invalid key name (expected [A-Za-z_][A-Za-z0-9_]*)`,
             });
         }
 
@@ -159,7 +159,7 @@ export function parseDotenv(
                 const consumed = line - entryLine;
                 warnings.push({
                     line: entryLine,
-                    message: `L${entryLine}: ${key}: unterminated double quote, consumed ${consumed} line(s) to EOF`,
+                    message: `${key}: unterminated double quote, consumed ${consumed} line(s) to EOF`,
                 });
             }
         } else if (quote === "'" || quote === "`") {
@@ -185,7 +185,7 @@ export function parseDotenv(
             if (commentAt < 0 && value.length < rawValue.length) {
                 warnings.push({
                     line: entryLine,
-                    message: `L${entryLine}: ${key}: suspicious trailing whitespace in unquoted value`,
+                    message: `${key}: suspicious trailing whitespace in unquoted value`,
                 });
             }
         }

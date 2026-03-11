@@ -86,6 +86,18 @@ describe("transforms", () => {
             expect(yesNo("K", "true", ctx).ok).toBe(false);
         });
 
+        it("uses defaults for omitted partial options", () => {
+            const customTrue = toBool({trueValues: ["yes"]});
+            expect(customTrue("K", "yes", ctx)).toEqual({ok: true, data: true});
+            expect(customTrue("K", "false", ctx)).toEqual({ok: true, data: false});
+            expect(customTrue("K", "true", ctx).ok).toBe(false);
+
+            const customFalse = toBool({falseValues: ["no"]});
+            expect(customFalse("K", "true", ctx)).toEqual({ok: true, data: true});
+            expect(customFalse("K", "no", ctx)).toEqual({ok: true, data: false});
+            expect(customFalse("K", "false", ctx).ok).toBe(false);
+        });
+
         it("fails on undefined", () => {
             const result = toBool()("K", undefined, ctx);
             expect(result.ok).toBe(false);
@@ -220,6 +232,14 @@ describe("transforms", () => {
             expect(toStringArray()("K", "single", ctx)).toEqual({ok: true, data: ["single"]});
         });
 
+        it("returns empty array for empty string", () => {
+            expect(toStringArray()("K", "", ctx)).toEqual({ok: true, data: []});
+        });
+
+        it("filters empty elements from split", () => {
+            expect(toStringArray()("K", "a,,b", ctx)).toEqual({ok: true, data: ["a", "b"]});
+        });
+
         it("fails on undefined", () => {
             const result = toStringArray()("K", undefined, ctx);
             expect(result.ok).toBe(false);
@@ -254,6 +274,10 @@ describe("transforms", () => {
 
             const lenient = toIntArray({strict: false})("K", "1,42abc,3", ctx);
             expect(lenient).toEqual({ok: true, data: [1, 42, 3]});
+        });
+
+        it("returns empty array for empty string", () => {
+            expect(toIntArray()("K", "", ctx)).toEqual({ok: true, data: []});
         });
 
         it("fails on undefined", () => {
@@ -296,6 +320,10 @@ describe("transforms", () => {
 
             const lenient = toFloatArray({strict: false})("K", "1.0,3.14xyz", ctx);
             expect(lenient).toEqual({ok: true, data: [1.0, 3.14]});
+        });
+
+        it("returns empty array for empty string", () => {
+            expect(toFloatArray()("K", "", ctx)).toEqual({ok: true, data: []});
         });
 
         it("fails on undefined", () => {
@@ -637,6 +665,9 @@ describe("refine", () => {
         it("works with arrays", () => {
             const transform = refine(toStringArray(), nonEmpty());
             expect(transform("K", "a,b", ctx)).toEqual({ok: true, data: ["a", "b"]});
+
+            const empty = transform("K", "", ctx);
+            expect(empty.ok).toBe(false);
         });
     });
 

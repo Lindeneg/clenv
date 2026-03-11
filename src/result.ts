@@ -25,21 +25,15 @@ export function failure<TCtx>(ctx: TCtx): ResultFailure<TCtx> {
     return {ok: false, ctx};
 }
 
-export function unwrap<T extends Result<any, any>>(
-    r: T
-): [T] extends [Result<infer TData, any>] ? TData : never {
+export function unwrap<TData>(r: Result<TData, EnvError[]>): TData {
     if (!r.ok) {
-        if (Array.isArray(r.ctx)) {
-            const msg = r.ctx
-                .map((e: EnvError | string) =>
-                    typeof e === "string"
-                        ? e
-                        : `${e.source && e.source !== "none" ? `${e.source}:${e.line ? `L${e.line}: ` : " "}` : ""}${e.message}`
-                )
-                .join("\n");
-            throw new Error("\n" + msg);
-        }
-        throw new Error(typeof r.ctx === "string" ? r.ctx : String(r.ctx));
+        const msg = r.ctx
+            .map(
+                (e) =>
+                    `${e.source && e.source !== "none" ? `${e.source}:${e.line ? `L${e.line}: ` : " "}` : ""}${e.message}`
+            )
+            .join("\n");
+        throw new Error("\n" + msg);
     }
     return r.data;
 }
