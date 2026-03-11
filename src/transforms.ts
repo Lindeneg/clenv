@@ -68,13 +68,13 @@ export type ToNumberArrayOpts = {
     delimiter?: string;
 } & ToNumberOpts;
 
-export function toIntArray(opts: ToNumberArrayOpts) {
+export function toIntArray(opts: ToNumberArrayOpts = {}) {
     return function (k: string, v: string | undefined, ctx: TransformContext): Result<number[]> {
         return toNumberArray("int", opts, k, v, ctx);
     };
 }
 
-export function toFloatArray(opts: ToNumberArrayOpts) {
+export function toFloatArray(opts: ToNumberArrayOpts = {}) {
     return function (k: string, v: string | undefined, ctx: TransformContext): Result<number[]> {
         return toNumberArray("float", opts, k, v, ctx);
     };
