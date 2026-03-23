@@ -1,4 +1,7 @@
-###### under development with possible breaking changes until 1.0.0 is released
+**unstable while under development, library effectively just made for myself as I needed the functionality, 
+if you have no need for the additional features on offer, please just use `dotenv`**.
+
+------
 
 # cl-env
 
